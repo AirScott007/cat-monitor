@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>猫咪监控 · 推流端</title>
+<style>
+/* 保持原有基础样式，新增录制提示 */
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; color:#fff; font-family:-apple-system,sans-serif; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+#container { position:relative; flex:1; overflow:hidden; }
+#video { width:100%; height:100%; object-fit:cover; display:block; }
+#canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+#hud { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:linear-gradient(to bottom,rgba(0,0,0,0.65),transparent); z-index:10; }
+#hud-left { display:flex; align-items:center; gap:8px; }
+#rec-dot { width:8px; height:8px; border-radius:50%; background:#ff3b30; animation:blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+#hud-title { font-size:13px; font-weight:600; letter-spacing:0.5px; }
+#dvr-status { font-size:10px; color:#ff3b30; border:1px solid #ff3b30; padding:2px 6px; border-radius:4px; margin-left:8px; }
+#status-badge { font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; background:rgba(255,180,0,0.15); border:1px solid rgba(255,180,0,0.4); color:#ffb400; transition:all 0.3s; }
+#status-badge.connected { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.45); color:#00ff88; }
+#controls { display:flex; align-items:center; gap:10px; padding:14px 16px; padding-bottom:max(14px,env(safe-area-inset-bottom)); background:rgba(0,0,0,0.88); flex-shrink:0; z-index:10; }
+.ctrl-btn { display:flex; flex-direction:column; align-items:center; gap:3px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:8px 12px; color:#fff; font-size:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; min-width:56px; }
+.ctrl-btn:active { background:rgba(255,255,255,0.16); transform:scale(0.95); }
+.ctrl-btn.active { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.5); color:#00ff88; }
+.ctrl-icon { font-size:18px; line-height:1; }
+#id-panel { flex:1; display:flex; flex-direction:column; gap:3px; min-width:0; }
+#id-label { font-size:10px; color:rgba(255,255,255,0.4); }
+#id-code { font-size:22px; font-weight:700; letter-spacing:4px; color:#fff; font-variant-numeric:tabular-nums; }
+#id-hint { font-size:10px; color:rgba(255,255,255,0.3); }
+#loading { position:absolute; inset:0; background:#000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:100; text-align:center; padding:32px; }
+#loading-title { font-size:17px; font-weight:600; }
+#loading-sub { font-size:13px; color:rgba(255,255,255,0.45); line-height:1.7; }
+#loading-step { font-size:12px; color:rgba(255,255,255,0.28); }
+.spinner { width:38px; height:38px; border:3px solid rgba(255,255,255,0.1); border-top-color:#00ff88; border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+#crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:36px; height:36px; pointer-events:none; opacity:0.2; }
+#crosshair::before,#crosshair::after { content:''; position:absolute; background:rgba(255,255,255,0.7); }
+#crosshair::before { width:1px; height:100%; left:50%; top:0; }
+#crosshair::after { width:100%; height:1px; top:50%; left:0; }
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-title">启动中...</div>
+  <div id="loading-sub">首次需授权摄像头并建立存储<br>请保持屏幕常亮和网络连接</div>
+  <div id="loading-step">初始化...</div>
+</div>
+
+<div id="container">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="crosshair"></div>
+  <div id="hud">
+    <div id="hud-left">
+      <div id="rec-dot"></div>
+      <div id="hud-title">CAT CAM</div>
+      <div id="dvr-status">循环录制中</div>
+    </div>
+    <div id="status-badge">等待连接</div>
+  </div>
+</div>
+
+<div id="controls">
+  <div id="id-panel">
+    <div id="id-label">房间码（给观看端输入）</div>
+    <div id="id-code">------</div>
+    <div id="id-hint">观看端打开 viewer.html 输入此码</div>
+  </div>
+  <button class="ctrl-btn active" id="btn-ai" onclick="toggleAI()">
+    <span class="ctrl-icon">🎯</span>AI
+  </button>
+  <button class="ctrl-btn" id="btn-cam" onclick="cycleCamera()">
+    <span class="ctrl-icon">🔄</span>切镜头
+  </button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const LABELS = ['cat','dog','bird','horse','sheep','cow','elephant','bear','zebra','giraffe','person'];
+const ZH = {cat:'猫',dog:'狗',person:'人'};
+
+let model=null, stream=null, aiEnabled=true, peer=null, activeCall=null;
+let animFrame=null, myRoomId=null;
+let rearCameras = [], currentCamIndex = 0;
+let db, mediaRecorder, dvrInterval;
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const loadStep = document.getElementById('loading-step');
+const badge = document.getElementById('status-badge');
+
+// 1. 初始化本地数据库 (用于循环录制)
+function initDB() {
+  return new Promise((resolve) => {
+    const request = indexedDB.open('CatCamDVR', 1);
+    request.onupgradeneeded = (e) => {
+      db = e.target.result;
+      if (!db.objectStoreNames.contains('videos')) {
+        db.createObjectStore('videos', { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = (e) => { db = e.target.result; resolve(); };
+    request.onerror = () => { console.error("DB Error"); resolve(); };
+  });
+}
+
+// 2. 行车记录仪逻辑 (每5分钟存一段，超额自动删旧)
+function startDVR() {
+  if (!stream || !db) return;
+  try {
+    if(mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+    // 尽量使用对 iOS 友好的编码格式
+    const options = MediaRecorder.isTypeSupported('video/mp4') ? { mimeType: 'video/mp4' } : {};
+    mediaRecorder = new MediaRecorder(stream, options);
+    
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 10000) { // 剔除无效空切片
+        const tx = db.transaction('videos', 'readwrite');
+        const store = tx.objectStore('videos');
+        const id = Date.now();
+        // 存储二进制 Blob 和当前时间标签
+        store.add({ id, blob: e.data, time: new Date().toLocaleTimeString('zh-CN', { hour12: false }) });
+
+        // 维持存储上限 (例如只保留最近 24 个片段 = 2小时，防止 Safari 崩溃。如空间大可调高)
+        const countReq = store.count();
+        countReq.onsuccess = () => {
+          if (countReq.result > 24) { 
+            const cursorReq = store.openCursor();
+            cursorReq.onsuccess = (ce) => {
+              const cursor = ce.target.result;
+              if (cursor) store.delete(cursor.primaryKey);
+            };
+          }
+        };
+      }
+    };
+    mediaRecorder.start();
+    
+    // 5分钟切片一次
+    if(dvrInterval) clearInterval(dvrInterval);
+    dvrInterval = setInterval(() => {
+      if (mediaRecorder.state === 'recording') mediaRecorder.stop();
+      startDVR(); // 重新开始录下一段
+    }, 5 * 60 * 1000);
+  } catch (err) {
+    document.getElementById('dvr-status').textContent = '录制失败';
+  }
+}
+
+// 3. 寻找广角镜头并启动
+async function getCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  rearCameras = devices.filter(d => d.kind === 'videoinput' && d.facingMode !== 'user');
+  if (rearCameras.length === 0) rearCameras = devices.filter(d => d.kind === 'videoinput');
+  
+  // 核心：优先寻找名称中带 Ultra Wide 或广角的镜头 (iPhone 11 Pro 支持)
+  const uwIndex = rearCameras.findIndex(d => d.label.toLowerCase().includes('ultra wide') || d.label.includes('超广角'));
+  if (uwIndex > -1) {
+    currentCamIndex = uwIndex;
+  }
+}
+
+async function startCamera(deviceId = null) {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  
+  // 强制高画质与低延迟帧率
+  const constraints = {
+    video: { 
+      width: { ideal: 1920 }, 
+      height: { ideal: 1080 },
+      frameRate: { ideal: 24 } 
+    },
+    audio: { echoCancellation: true, noiseSuppression: true }
+  };
+  
+  if (deviceId) {
+    constraints.video.deviceId = { exact: deviceId };
+  } else {
+    constraints.video.facingMode = 'environment';
+  }
+
+  stream = await navigator.mediaDevices.getUserMedia(constraints);
+  video.srcObject = stream;
+  await video.play();
+  resizeCanvas();
+  startDVR(); // 启动循环录像
+}
+
+async function cycleCamera() {
+  if (rearCameras.length < 2) return;
+  currentCamIndex = (currentCamIndex + 1) % rearCameras.length;
+  await startCamera(rearCameras[currentCamIndex].deviceId);
+}
+
+function resizeCanvas() {
+  canvas.width = video.videoWidth || window.innerWidth;
+  canvas.height = video.videoHeight || window.innerHeight;
+}
+
+// 4. PeerJS 连接与画质拉升
+function initPeer(roomId) {
+  myRoomId = roomId;
+  document.getElementById('id-code').textContent = roomId.replace('catcam-','');
+  if (peer) { try { peer.destroy(); } catch(e){} }
+  peer = new Peer(roomId, { host:'0.peerjs.com', port:443, path:'/', secure:true });
+
+  peer.on('open', () => badge.textContent = '等待连接');
+  peer.on('error', (err) => { if (err.type === 'unavailable-id') initPeer('catcam-' + Math.random().toString(36).substr(2,6).toUpperCase()); });
+
+  peer.on('connection', (conn) => {
+    conn.on('open', () => {
+      badge.textContent = '已连接';
+      badge.className = 'status-badge connected';
+      
+      if (activeCall) { try { activeCall.close(); } catch(e){} }
+      activeCall = peer.call(conn.peer, stream);
+
+      // 强制拉高 WebRTC 视频码率，解决模糊问题
+      const sender = activeCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+      if (sender) {
+        const parameters = sender.getParameters();
+        if (!parameters.encodings) parameters.encodings = [{}];
+        parameters.encodings[0].maxBitrate = 3000000; // 3 Mbps 高清码率
+        sender.setParameters(parameters);
+      }
+
+      activeCall.on('close', () => { badge.textContent = '等待连接'; badge.className = 'status-badge'; activeCall = null; });
+    });
+
+    // 处理观看端发来的请求 (查列表、下载视频)
+    conn.on('data', (d) => {
+      if (d.cmd === 'GET_LIST') {
+        const tx = db.transaction('videos', 'readonly');
+        const req = tx.objectStore('videos').getAll();
+        req.onsuccess = (e) => {
+          const list = e.target.result.map(v => ({ id: v.id, time: v.time }));
+          conn.send({ type: 'LIST_RESULT', data: list });
+        };
+      } else if (d.cmd === 'GET_VID') {
+        const tx = db.transaction('videos', 'readonly');
+        const req = tx.objectStore('videos').get(d.id);
+        req.onsuccess = (e) => {
+          if (e.target.result) {
+            conn.send({ type: 'VID_RESULT', blob: e.target.result.blob });
+          }
+        };
+      }
+    });
+
+    conn.on('close', () => { badge.textContent = '等待连接'; badge.className = 'status-badge'; });
+  });
+}
+
+async function init() {
+  loadStep.textContent = '正在初始化数据库...';
+  await initDB();
+  loadStep.textContent = '请求摄像头权限...';
+  // 第一次请求权限
+  await navigator.mediaDevices.getUserMedia({video: true, audio: true}); 
+  await getCameras(); // 枚举广角镜头
+  await startCamera(rearCameras.length > 0 ? rearCameras[currentCamIndex].deviceId : null);
+  
+  loadStep.textContent = '加载 AI 模型...';
+  model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+  loadStep.textContent = '连接信令服务器...';
+  initPeer('catcam-' + Math.random().toString(36).substr(2,6).toUpperCase());
+  document.getElementById('loading').style.display = 'none';
+  detect();
+}
+
+async function detect() {
+  if (!model || !video.videoWidth) { 
+    animFrame = requestAnimationFrame(detect); 
+    return; 
+  }
+  if (aiEnabled) {
+    resizeCanvas();
+    try {
+      const preds = await model.detect(video);
+      const vw = video.videoWidth, vh = video.videoHeight;
+      const boxes = preds.filter(p => LABELS.includes(p.class) && p.score > 0.45)
+                         .map(p => ({ lz:ZH[p.class]||p.class, score:p.score, x:p.bbox[0]/vw, y:p.bbox[1]/vh, w:p.bbox[2]/vw, h:p.bbox[3]/vh }));
+      document.getElementById('crosshair').style.display = boxes.length > 0 ? 'none' : 'block';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBoxes(boxes);
+    } catch(e){}
+  } else {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  // 降低 AI 频率以节省 CPU，保画质
+  setTimeout(() => { animFrame = requestAnimationFrame(detect); }, 150);
+}
+
+function drawBoxes(boxes) {
+  const cw=canvas.width, ch=canvas.height;
+  boxes.forEach((b,i) => {
+    const x=b.x*cw, y=b.y*ch, w=b.w*cw, h=b.h*ch, primary=i===0;
+    ctx.strokeStyle = primary?'#00ff88':'rgba(255,255,255,0.45)';
+    ctx.lineWidth = primary?2:1; ctx.strokeRect(x,y,w,h);
+    const label=b.lz+' '+Math.round(b.score*100)+'%';
+    ctx.font=(primary?'bold 13px':'11px')+' -apple-system';
+    const tw=ctx.measureText(label).width;
+    ctx.fillStyle=primary?'#00ff88':'rgba(255,255,255,0.65)';
+    ctx.fillRect(x,y>22?y-20:y+h,tw+10,18);
+    ctx.fillStyle='#000'; ctx.fillText(label,x+4,y>22?y-6:y+h+13);
+  });
+}
+
+function toggleAI() {
+  aiEnabled=!aiEnabled;
+  document.getElementById('btn-ai').classList.toggle('active',aiEnabled);
+}
+
+window.addEventListener('resize', resizeCanvas);
+init().catch(e => {
+  document.getElementById('loading').innerHTML=`<div style="font-size:14px;color:#ff6b6b;padding:32px">启动失败：${e.message}<br>请确保允许权限后刷新。</div>`;
+});
+</script>
+</body>
+</html>
