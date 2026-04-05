@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>猫咪监控 · 观看端</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemFont,sans-serif; min-height:100dvh; display:flex; flex-direction:column; }
+
+#connect-screen {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:32px 24px; gap:0;
+}
+#app-icon {
+  width:72px; height:72px; border-radius:18px;
+  background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.22);
+  display:flex; align-items:center; justify-content:center;
+  font-size:36px; margin-bottom:20px;
+}
+#app-title { font-size:22px; font-weight:600; margin-bottom:6px; }
+#app-sub { font-size:14px; color:rgba(255,255,255,0.4); margin-bottom:36px; text-align:center; line-height:1.6; }
+#input-wrap {
+  width:100%; max-width:340px;
+  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
+  border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:14px;
+}
+#input-label { font-size:12px; color:rgba(255,255,255,0.38); letter-spacing:0.5px; }
+#room-input {
+  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14);
+  border-radius:10px; padding:14px 16px;
+  color:#fff; font-size:22px; font-weight:700; letter-spacing:4px;
+  text-align:center; text-transform:uppercase; width:100%;
+  -webkit-appearance:none; outline:none;
+}
+#room-input:focus { border-color:rgba(0,255,136,0.5); background:rgba(0,255,136,0.05); }
+#room-input::placeholder { color:rgba(255,255,255,0.18); font-weight:400; font-size:16px; letter-spacing:2px; }
+#connect-btn {
+  background:#00ff88; color:#000; font-size:16px; font-weight:700;
+  border:none; border-radius:10px; padding:14px; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#connect-btn:active { opacity:0.8; }
+#connect-btn:disabled { opacity:0.35; }
+#connect-status { font-size:13px; color:rgba(255,255,255,0.4); text-align:center; min-height:20px; }
+#connect-status.error { color:#ff6b6b; }
+#connect-status.ok { color:#00ff88; }
+
+/* 观看界面 */
+#watch-screen { display:none; flex:1; flex-direction:column; background:#000; }
+#video-wrap { position:relative; flex:1; overflow:hidden; background:#000; min-height:200px; }
+#remote-video { width:100%; height:100%; object-fit:contain; display:block; background:#000; }
+
+#watch-hud {
+  position:absolute; top:0; left:0; right:0;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px;
+  background:linear-gradient(to bottom,rgba(0,0,0,0.65),transparent);
+}
+#watch-hud-left { display:flex; align-items:center; gap:8px; }
+#live-dot { width:8px; height:8px; border-radius:50%; background:#ff3b30; animation:blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+#live-label { font-size:12px; font-weight:700; letter-spacing:1px; color:#ff3b30; }
+#audio-indicator { display:flex; align-items:center; gap:3px; padding:3px 8px; background:rgba(0,0,0,0.35); border-radius:12px; }
+.bar { width:3px; border-radius:2px; background:#00ff88; animation:wave 0.8s ease-in-out infinite; }
+.bar:nth-child(1){height:6px;animation-delay:0s}
+.bar:nth-child(2){height:12px;animation-delay:0.1s}
+.bar:nth-child(3){height:8px;animation-delay:0.2s}
+.bar:nth-child(4){height:14px;animation-delay:0.15s}
+.bar:nth-child(5){height:6px;animation-delay:0.05s}
+@keyframes wave { 0%,100%{transform:scaleY(0.35)} 50%{transform:scaleY(1)} }
+#audio-indicator.muted .bar { background:rgba(255,255,255,0.2); animation:none; transform:scaleY(0.3); }
+#watch-quality { font-size:11px; color:rgba(255,255,255,0.4); }
+
+#watch-controls {
+  display:flex; align-items:center; justify-content:space-around;
+  padding:14px 20px; padding-bottom:max(14px,env(safe-area-inset-bottom));
+  background:rgba(0,0,0,0.9); gap:12px; flex-shrink:0;
+}
+.w-btn {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12);
+  border-radius:12px; padding:10px 18px; color:#fff; font-size:10px;
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
+.w-btn:active { background:rgba(255,255,255,0.16); }
+.w-btn.active { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.5); color:#00ff88; }
+.w-icon { font-size:20px; line-height:1; }
+#volume-wrap { flex:1; display:flex; flex-direction:column; gap:6px; align-items:center; }
+#volume-label { font-size:10px; color:rgba(255,255,255,0.38); }
+#volume-slider {
+  width:100%; height:3px; -webkit-appearance:none; appearance:none;
+  background:rgba(255,255,255,0.2); border-radius:2px; outline:none;
+}
+#volume-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#fff; }
+
+/* 断线提示 */
+#disconnected {
+  position:absolute; inset:0; background:rgba(0,0,0,0.85);
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; z-index:50; text-align:center; padding:32px;
+}
+#disconnected-icon { font-size:48px; }
+#disconnected-title { font-size:17px; font-weight:600; }
+#disconnected-sub { font-size:13px; color:rgba(255,255,255,0.45); line-height:1.6; }
+#reconnect-btn {
+  margin-top:8px; background:#00ff88; color:#000;
+  font-size:15px; font-weight:700; border:none; border-radius:12px;
+  padding:12px 28px; cursor:pointer;
+}
+
+/* 视频加载提示 */
+#video-loading {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:12px; pointer-events:none;
+}
+#video-loading .spinner { width:32px; height:32px; border:2px solid rgba(255,255,255,0.1); border-top-color:#00ff88; border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+#video-loading p { font-size:13px; color:rgba(255,255,255,0.45); }
+</style>
+</head>
+<body>
+
+<div id="connect-screen">
+  <div id="app-icon">🐱</div>
+  <div id="app-title">猫咪监控</div>
+  <div id="app-sub">输入推流端显示的房间码<br>即可查看实时画面和听到声音</div>
+  <div id="input-wrap">
+    <div id="input-label">房间码</div>
+    <input id="room-input" type="text" maxlength="6" placeholder="ABC123"
+      autocomplete="off" autocorrect="off" spellcheck="false"
+      oninput="this.value=this.value.toUpperCase()">
+    <button id="connect-btn" onclick="connectToCamera()">连接</button>
+    <div id="connect-status"></div>
+  </div>
+</div>
+
+<div id="watch-screen">
+  <div id="video-wrap">
+    <video id="remote-video" playsinline autoplay></video>
+    <div id="video-loading">
+      <div class="spinner"></div>
+      <p>等待画面...</p>
+    </div>
+    <div id="watch-hud">
+      <div id="watch-hud-left">
+        <div id="live-dot"></div>
+        <div id="live-label">LIVE</div>
+        <div id="audio-indicator">
+          <div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        </div>
+      </div>
+      <div id="watch-quality">连接中...</div>
+    </div>
+    <div id="disconnected">
+      <div id="disconnected-icon">📡</div>
+      <div id="disconnected-title">连接断开</div>
+      <div id="disconnected-sub">推流端可能已关闭<br>或网络中断</div>
+      <button id="reconnect-btn" onclick="goBack()">返回重连</button>
+    </div>
+  </div>
+  <div id="watch-controls">
+    <button class="w-btn active" id="btn-sound" onclick="toggleSound()">
+      <span class="w-icon">🔊</span>声音
+    </button>
+    <div id="volume-wrap">
+      <div id="volume-label">音量</div>
+      <input type="range" id="volume-slider" min="0" max="100" value="80"
+        oninput="setVolume(this.value)">
+    </div>
+    <button class="w-btn" id="btn-fullscreen" onclick="toggleFullscreen()">
+      <span class="w-icon">⛶</span>全屏
+    </button>
+    <button class="w-btn" id="btn-disconnect" onclick="goBack()">
+      <span class="w-icon">✕</span>断开
+    </button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+let peer = null, currentCall = null;
+let soundEnabled = true;
+
+const remoteVideo    = document.getElementById('remote-video');
+const connectStatus  = document.getElementById('connect-status');
+const audioIndicator = document.getElementById('audio-indicator');
+const watchQuality   = document.getElementById('watch-quality');
+const videoLoading   = document.getElementById('video-loading');
+
+function setStatus(msg, type='') {
+  connectStatus.textContent = msg;
+  connectStatus.className = type;
+}
+
+function connectToCamera() {
+  const raw = document.getElementById('room-input').value.trim().toUpperCase();
+  if (raw.length < 4) { setStatus('请输入正确的房间码', 'error'); return; }
+
+  const cameraId = 'catcam-' + raw;
+  const btn = document.getElementById('connect-btn');
+  btn.disabled = true;
+  setStatus('连接中...', '');
+
+  if (peer) { try { peer.destroy(); } catch(e){} }
+
+  // viewer 用随机 ID 注册
+  peer = new Peer({ host:'0.peerjs.com', port:443, path:'/', secure:true });
+
+  peer.on('open', (myId) => {
+    setStatus('正在联系推流端...', '');
+
+    // 第一步：发起 data connection 让 camera 知道我们的 peer id
+    const conn = peer.connect(cameraId, { reliable:true });
+
+    conn.on('open', () => {
+      setStatus('等待画面推送...', '');
+      // 显示观看界面，但先保留 loading 转圈
+      showWatchScreen(raw);
+    });
+
+    conn.on('error', () => {
+      setStatus('data 连接失败，请重试', 'error');
+      btn.disabled = false;
+    });
+
+    // 第二步：等 camera 主动 call 我们
+    peer.on('call', (call) => {
+      currentCall = call;
+      // answer 不需要传本地流，传空即可
+      call.answer();
+
+      call.on('stream', (remoteStream) => {
+        remoteVideo.srcObject = remoteStream;
+        remoteVideo.volume = document.getElementById('volume-slider').value / 100;
+
+        // 关键：iOS Safari 需要显式 play()
+        remoteVideo.play().then(() => {
+          videoLoading.style.display = 'none';
+          watchQuality.textContent = '● 已连接';
+        }).catch(() => {
+          // 自动播放被拦截时显示点击按钮
+          videoLoading.innerHTML = '<button onclick="forcePlay()" style="background:#00ff88;color:#000;border:none;border-radius:10px;padding:12px 24px;font-size:15px;font-weight:700;cursor:pointer">点击播放画面</button>';
+        });
+      });
+
+      call.on('close', showDisconnected);
+      call.on('error', showDisconnected);
+    });
+  });
+
+  peer.on('error', (err) => {
+    let msg = '连接失败';
+    if (err.type === 'peer-unavailable') msg = '找不到该房间码，请确认推流端已开启';
+    else if (err.type === 'network') msg = '网络错误，请检查连接';
+    setStatus(msg, 'error');
+    btn.disabled = false;
+  });
+
+  // 15 秒超时
+  setTimeout(() => {
+    if (!remoteVideo.srcObject) {
+      setStatus('连接超时，请检查房间码并重试', 'error');
+      btn.disabled = false;
+    }
+  }, 15000);
+}
+
+function forcePlay() {
+  videoLoading.style.display = 'none';
+  remoteVideo.play().catch(()=>{});
+  watchQuality.textContent = '● 已连接';
+}
+
+function showWatchScreen(roomId) {
+  document.getElementById('connect-screen').style.display = 'none';
+  document.getElementById('watch-screen').style.display = 'flex';
+  videoLoading.style.display = 'flex';
+}
+
+function showDisconnected() {
+  watchQuality.textContent = '● 已断开';
+  document.getElementById('disconnected').style.display = 'flex';
+  videoLoading.style.display = 'none';
+}
+
+function goBack() {
+  if (currentCall) { try { currentCall.close(); } catch(e){} }
+  if (peer) { try { peer.destroy(); } catch(e){} }
+  remoteVideo.srcObject = null;
+  document.getElementById('connect-screen').style.display = 'flex';
+  document.getElementById('watch-screen').style.display = 'none';
+  document.getElementById('disconnected').style.display = 'none';
+  document.getElementById('connect-btn').disabled = false;
+  videoLoading.style.display = 'none';
+  setStatus('');
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  remoteVideo.muted = !soundEnabled;
+  const btn = document.getElementById('btn-sound');
+  btn.classList.toggle('active', soundEnabled);
+  btn.querySelector('.w-icon').textContent = soundEnabled ? '🔊' : '🔇';
+  audioIndicator.classList.toggle('muted', !soundEnabled);
+}
+
+function setVolume(val) {
+  remoteVideo.volume = val / 100;
+  const muted = Number(val) === 0;
+  remoteVideo.muted = muted;
+  soundEnabled = !muted;
+  document.getElementById('btn-sound').classList.toggle('active', soundEnabled);
+  document.getElementById('btn-sound').querySelector('.w-icon').textContent = soundEnabled ? '🔊' : '🔇';
+  audioIndicator.classList.toggle('muted', !soundEnabled);
+}
+
+function toggleFullscreen() {
+  const wrap = document.getElementById('video-wrap');
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!isFs) {
+    (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
+    document.getElementById('btn-fullscreen').classList.add('active');
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    document.getElementById('btn-fullscreen').classList.remove('active');
+  }
+}
+
+document.getElementById('room-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') connectToCamera();
+});
+</script>
+</body>
+</html>
