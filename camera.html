@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>猫咪监控 · 推流端</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; color:#fff; font-family:-apple-system,sans-serif; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+#container { position:relative; flex:1; overflow:hidden; }
+#video { width:100%; height:100%; object-fit:cover; display:block; }
+#canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+#hud {
+  position:absolute; top:0; left:0; right:0;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px;
+  background:linear-gradient(to bottom,rgba(0,0,0,0.65),transparent);
+  z-index:10;
+}
+#hud-left { display:flex; align-items:center; gap:8px; }
+#rec-dot { width:8px; height:8px; border-radius:50%; background:#ff3b30; animation:blink 1.2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+#hud-title { font-size:13px; font-weight:600; letter-spacing:0.5px; }
+#status-badge {
+  font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px;
+  background:rgba(255,180,0,0.15); border:1px solid rgba(255,180,0,0.4); color:#ffb400;
+  transition:all 0.3s;
+}
+#status-badge.connected { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.45); color:#00ff88; }
+#controls {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 16px; padding-bottom:max(14px,env(safe-area-inset-bottom));
+  background:rgba(0,0,0,0.88); flex-shrink:0; z-index:10;
+}
+.ctrl-btn {
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14);
+  border-radius:12px; padding:8px 12px; color:#fff; font-size:10px;
+  cursor:pointer; -webkit-tap-highlight-color:transparent; min-width:56px;
+}
+.ctrl-btn:active { background:rgba(255,255,255,0.16); transform:scale(0.95); }
+.ctrl-btn.active { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.5); color:#00ff88; }
+.ctrl-icon { font-size:18px; line-height:1; }
+#id-panel { flex:1; display:flex; flex-direction:column; gap:3px; min-width:0; }
+#id-label { font-size:10px; color:rgba(255,255,255,0.4); }
+#id-code { font-size:20px; font-weight:700; letter-spacing:3px; color:#fff; font-variant-numeric:tabular-nums; }
+#id-hint { font-size:10px; color:rgba(255,255,255,0.3); }
+#loading {
+  position:absolute; inset:0; background:#000;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:14px; z-index:100; text-align:center; padding:32px;
+}
+#loading-title { font-size:17px; font-weight:600; }
+#loading-sub { font-size:13px; color:rgba(255,255,255,0.45); line-height:1.6; }
+#loading-step { font-size:12px; color:rgba(255,255,255,0.3); }
+.spinner { width:38px; height:38px; border:3px solid rgba(255,255,255,0.1); border-top-color:#00ff88; border-radius:50%; animation:spin 0.8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+#crosshair {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:36px; height:36px; pointer-events:none; opacity:0.2;
+}
+#crosshair::before,#crosshair::after { content:''; position:absolute; background:rgba(255,255,255,0.7); }
+#crosshair::before { width:1px; height:100%; left:50%; top:0; }
+#crosshair::after { width:100%; height:1px; top:50%; left:0; }
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-title">启动中...</div>
+  <div id="loading-sub">正在加载 AI 模型和摄像头<br>首次约需 15–20 秒，请保持网络连接</div>
+  <div id="loading-step">初始化...</div>
+</div>
+
+<div id="container">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="crosshair"></div>
+  <div id="hud">
+    <div id="hud-left">
+      <div id="rec-dot"></div>
+      <div id="hud-title">CAT CAM</div>
+    </div>
+    <div id="status-badge">等待连接</div>
+  </div>
+</div>
+
+<div id="controls">
+  <div id="id-panel">
+    <div id="id-label">房间码（给观看端输入）</div>
+    <div id="id-code">------</div>
+    <div id="id-hint">观看端打开 viewer.html 输入此码</div>
+  </div>
+  <button class="ctrl-btn active" id="btn-ai" onclick="toggleAI()">
+    <span class="ctrl-icon">🎯</span>AI
+  </button>
+  <button class="ctrl-btn" id="btn-cam" onclick="switchCamera()">
+    <span class="ctrl-icon">🔄</span>翻转
+  </button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const LABELS = ['cat','dog','bird','horse','sheep','cow','elephant','bear','zebra','giraffe','person'];
+const ZH = {cat:'猫',dog:'狗',bird:'鸟',horse:'马',sheep:'羊',cow:'牛',elephant:'象',bear:'熊',zebra:'斑马',giraffe:'长颈鹿',person:'人'};
+
+let model=null, stream=null, facingMode='environment';
+let aiEnabled=true, peer=null, currentCall=null;
+let animFrame=null;
+
+const video   = document.getElementById('video');
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const loading = document.getElementById('loading');
+const loadStep= document.getElementById('loading-step');
+const idCode  = document.getElementById('id-code');
+const badge   = document.getElementById('status-badge');
+const crosshair = document.getElementById('crosshair');
+
+function resizeCanvas() {
+  canvas.width  = video.videoWidth  || window.innerWidth;
+  canvas.height = video.videoHeight || window.innerHeight;
+}
+
+async function startCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode, width:{ideal:1280}, height:{ideal:720} },
+    audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
+  });
+  video.srcObject = stream;
+  await video.play();
+  resizeCanvas();
+}
+
+function generateRoomId() {
+  return 'catcam-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+}
+
+function initPeer(roomId) {
+  const shortId = roomId.replace('catcam-', '');
+  idCode.textContent = shortId;
+
+  peer = new Peer(roomId, { host:'0.peerjs.com', port:443, path:'/', secure:true });
+
+  peer.on('open', () => {
+    badge.textContent = '等待连接';
+  });
+
+  peer.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      // 房间码冲突，重新生成
+      initPeer(generateRoomId());
+    }
+  });
+
+  peer.on('call', (call) => {
+    currentCall = call;
+    call.answer(stream);
+    badge.textContent = '已连接';
+    badge.className = 'status-badge connected';
+
+    call.on('close', () => {
+      badge.textContent = '等待连接';
+      badge.className = 'status-badge';
+      currentCall = null;
+    });
+    call.on('error', () => {
+      badge.textContent = '等待连接';
+      badge.className = 'status-badge';
+    });
+  });
+
+  peer.on('connection', (conn) => {
+    conn.on('data', (data) => {
+      if (data === 'ping') conn.send('pong');
+    });
+  });
+}
+
+async function init() {
+  loadStep.textContent = '请求摄像头权限...';
+  await startCamera();
+
+  loadStep.textContent = '加载 AI 模型（约 10–15 秒）...';
+  model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+
+  loadStep.textContent = '连接信令服务器...';
+  initPeer(generateRoomId());
+
+  loading.style.display = 'none';
+  detect();
+}
+
+async function detect() {
+  if (!model || !video.videoWidth) { animFrame = requestAnimationFrame(detect); return; }
+  resizeCanvas();
+
+  let preds = [];
+  try { preds = await model.detect(video); } catch(e){}
+
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const boxes = preds
+    .filter(p => LABELS.includes(p.class) && p.score > 0.45)
+    .map(p => ({
+      lz: ZH[p.class]||p.class, score: p.score,
+      x: p.bbox[0]/vw, y: p.bbox[1]/vh,
+      w: p.bbox[2]/vw, h: p.bbox[3]/vh
+    }));
+
+  crosshair.style.display = boxes.length > 0 ? 'none' : 'block';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (aiEnabled) drawBoxes(boxes);
+
+  animFrame = requestAnimationFrame(detect);
+}
+
+function drawBoxes(boxes) {
+  const cw = canvas.width, ch = canvas.height;
+  boxes.forEach((b, i) => {
+    const x=b.x*cw, y=b.y*ch, w=b.w*cw, h=b.h*ch;
+    const primary = i === 0;
+    const color = primary ? '#00ff88' : 'rgba(255,255,255,0.45)';
+    ctx.strokeStyle = color; ctx.lineWidth = primary ? 2 : 1;
+    ctx.strokeRect(x, y, w, h);
+    const cs = 12;
+    ctx.lineWidth = primary ? 3 : 1.5;
+    [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy])=>{
+      ctx.beginPath(); ctx.moveTo(cx+dx*cs,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+dy*cs); ctx.stroke();
+    });
+    const label = b.lz + ' ' + Math.round(b.score*100) + '%';
+    ctx.font = (primary?'bold 13px':'11px') + ' -apple-system';
+    const tw = ctx.measureText(label).width;
+    const lx = Math.min(x, cw-tw-12);
+    const ly = y > 22 ? y - 6 : y + h + 18;
+    ctx.fillStyle = primary ? '#00ff88' : 'rgba(255,255,255,0.65)';
+    ctx.fillRect(lx-4, ly-14, tw+10, 18);
+    ctx.fillStyle = '#000'; ctx.fillText(label, lx+1, ly);
+    if (primary) {
+      const t = (Date.now()%2000)/2000;
+      const sy = y + t*h;
+      const g = ctx.createLinearGradient(x,sy-6,x,sy+6);
+      g.addColorStop(0,'rgba(0,255,136,0)'); g.addColorStop(0.5,'rgba(0,255,136,0.3)'); g.addColorStop(1,'rgba(0,255,136,0)');
+      ctx.fillStyle=g; ctx.fillRect(x,sy-6,w,12);
+    }
+  });
+}
+
+function toggleAI() {
+  aiEnabled = !aiEnabled;
+  document.getElementById('btn-ai').classList.toggle('active', aiEnabled);
+  if (!aiEnabled) ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+async function switchCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera();
+}
+
+window.addEventListener('resize', resizeCanvas);
+video.addEventListener('loadedmetadata', resizeCanvas);
+
+init().catch(e => {
+  loading.innerHTML = `<div style="font-size:14px;color:rgba(255,255,255,0.5);line-height:1.8">启动失败：${e.message}<br><br>请确保允许<b>摄像头</b>和<b>麦克风</b>权限，然后刷新。</div>`;
+});
+</script>
+</body>
+</html>
