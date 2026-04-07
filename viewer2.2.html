@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>CatCam · 观看端</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-height:100dvh;display:flex;flex-direction:column;}
+
+/* ── 连接界面 ── */
+#connect-screen{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 22px;}
+#app-icon{width:68px;height:68px;border-radius:18px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);display:flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:18px;}
+#app-title{font-size:20px;font-weight:600;margin-bottom:5px;}
+#app-sub{font-size:13px;color:rgba(255,255,255,0.4);margin-bottom:28px;text-align:center;line-height:1.6;}
+#input-wrap{width:100%;max-width:320px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:15px;padding:18px;display:flex;flex-direction:column;gap:12px;}
+.inp-label{font-size:11px;color:rgba(255,255,255,0.36);}
+.inp-field{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:10px;padding:12px 14px;color:#fff;font-size:16px;font-weight:600;letter-spacing:2px;text-align:center;text-transform:uppercase;width:100%;-webkit-appearance:none;outline:none;}
+.inp-field:focus{border-color:rgba(0,255,136,0.5);background:rgba(0,255,136,0.05);}
+.inp-field::placeholder{color:rgba(255,255,255,0.18);font-weight:400;font-size:14px;letter-spacing:1px;}
+#connect-btn{background:#00ff88;color:#000;font-size:15px;font-weight:700;border:none;border-radius:10px;padding:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+#connect-btn:disabled{opacity:0.35;}
+#connect-status{font-size:12px;color:rgba(255,255,255,0.4);text-align:center;min-height:18px;}
+#connect-status.error{color:#ff6b6b;}
+
+/* ── 观看界面 ── */
+#watch-screen{display:none;flex:1;flex-direction:column;background:#000;height:100dvh;}
+#video-wrap{position:relative;flex:1;overflow:hidden;background:#000;min-height:0;}
+#remote-video{width:100%;height:100%;object-fit:contain;display:block;background:#000;}
+
+/* HUD */
+#watch-hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);}
+#hud-left{display:flex;align-items:center;gap:7px;}
+#live-dot{width:7px;height:7px;border-radius:50%;background:#ff3b30;animation:blink 1.2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.1}}
+#live-label{font-size:11px;font-weight:700;letter-spacing:1px;color:#ff3b30;}
+#audio-bars{display:flex;align-items:center;gap:2px;padding:3px 7px;background:rgba(0,0,0,0.35);border-radius:10px;}
+.bar{width:3px;border-radius:2px;background:#00ff88;animation:wave 0.8s ease-in-out infinite;}
+.bar:nth-child(1){height:5px;animation-delay:0s}.bar:nth-child(2){height:11px;animation-delay:.1s}.bar:nth-child(3){height:7px;animation-delay:.2s}.bar:nth-child(4){height:13px;animation-delay:.15s}.bar:nth-child(5){height:5px;animation-delay:.05s}
+@keyframes wave{0%,100%{transform:scaleY(0.3)}50%{transform:scaleY(1)}}
+#audio-bars.muted .bar{background:rgba(255,255,255,0.2);animation:none;}
+#watch-quality{font-size:10px;color:rgba(255,255,255,0.4);}
+
+/* 状态看板（右侧抽屉） */
+#dashboard-btn{position:absolute;top:10px;right:14px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:4px 10px;font-size:11px;cursor:pointer;z-index:15;display:flex;align-items:center;gap:5px;}
+#dashboard-btn .bat-icon{font-size:12px;}
+#dashboard{position:absolute;top:0;right:0;bottom:0;width:220px;background:rgba(12,12,12,0.96);border-left:1px solid rgba(255,255,255,0.1);z-index:20;transform:translateX(100%);transition:transform 0.25s;display:flex;flex-direction:column;}
+#dashboard.open{transform:translateX(0);}
+#dash-header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px;border-bottom:1px solid rgba(255,255,255,0.08);}
+#dash-title{font-size:14px;font-weight:600;}
+#dash-close{background:rgba(255,255,255,0.08);border:none;color:#fff;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;}
+#dash-body{flex:1;overflow-y:auto;padding:12px;}
+.dash-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);}
+.dash-label{font-size:11px;color:rgba(255,255,255,0.45);}
+.dash-val{font-size:13px;font-weight:600;}
+.dash-val.ok{color:#00ff88;}
+.dash-val.warn{color:#ff8c00;}
+.dash-val.bad{color:#ff6b6b;}
+#thermal-alert{background:rgba(255,140,0,0.15);border:1px solid rgba(255,140,0,0.4);border-radius:8px;padding:8px 10px;font-size:11px;color:#ff8c00;display:none;margin-bottom:8px;line-height:1.5;}
+#thermal-alert.show{display:block;}
+.dash-btn{width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:9px;padding:8px;color:#fff;font-size:11px;cursor:pointer;margin-top:6px;text-align:center;}
+.dash-btn:active{background:rgba(255,255,255,0.15);}
+.dash-btn.danger{border-color:rgba(255,59,48,0.4);color:#ff6b6b;}
+
+/* 信号强度条 */
+#signal-bars{display:flex;align-items:flex-end;gap:2px;height:14px;}
+.sig-bar{width:4px;border-radius:1px;background:rgba(255,255,255,0.2);}
+.sig-bar.on{background:#00ff88;}
+
+/* 镜头 */
+#lens-switcher{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:7px;z-index:10;}
+.lens-btn{background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.2);border-radius:18px;padding:5px 9px;color:rgba(255,255,255,0.65);font-size:11px;font-weight:600;cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent;}
+.lens-btn.active{background:rgba(0,255,136,0.2);border-color:rgba(0,255,136,0.6);color:#00ff88;}
+
+/* PTZ 覆盖层 */
+#ptz-overlay{position:absolute;inset:0;z-index:8;touch-action:none;}
+#ptz-indicator{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.65);border-radius:14px;padding:4px 14px;font-size:12px;opacity:0;transition:opacity 0.2s;pointer-events:none;}
+#ptz-indicator.show{opacity:1;}
+
+/* 录制徽章 */
+#rec-badge{position:absolute;top:44px;left:14px;background:rgba(255,59,48,0.85);border-radius:7px;padding:2px 9px;font-size:10px;font-weight:700;display:none;animation:blink 1s infinite;}
+#rec-badge.on{display:block;}
+
+/* 底部控制 */
+#watch-controls{display:flex;align-items:center;flex-wrap:wrap;justify-content:center;gap:6px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,0.92);flex-shrink:0;}
+.w-btn{display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:11px;padding:7px 9px;color:#fff;font-size:9px;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:46px;}
+.w-btn:active{transform:scale(0.94);}
+.w-btn.active{background:rgba(0,255,136,0.15);border-color:rgba(0,255,136,0.5);color:#00ff88;}
+.w-btn.danger{border-color:rgba(255,59,48,0.35);}
+.w-btn.danger.active{background:rgba(255,59,48,0.2);border-color:rgba(255,59,48,0.6);color:#ff6b6b;}
+.w-icon{font-size:16px;line-height:1;}
+#vol-wrap{display:flex;flex-direction:column;gap:4px;align-items:center;flex:1;min-width:70px;max-width:120px;}
+#vol-label{font-size:9px;color:rgba(255,255,255,0.36);}
+#vol-slider{width:100%;height:3px;-webkit-appearance:none;appearance:none;background:rgba(255,255,255,0.2);border-radius:2px;outline:none;}
+#vol-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;}
+
+/* 对讲按钮（长按） */
+#btn-intercom{position:relative;}
+#btn-intercom.talking{background:rgba(0,120,255,0.2);border-color:rgba(0,120,255,0.6);color:#4da6ff;}
+
+/* 断线 */
+#disconnected{position:absolute;inset:0;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:11px;z-index:50;text-align:center;padding:32px;}
+#disconnected-icon{font-size:44px;}
+#disconnected-title{font-size:16px;font-weight:600;}
+#disconnected-sub{font-size:12px;color:rgba(255,255,255,0.4);line-height:1.6;}
+#reconnect-btn{margin-top:8px;background:#00ff88;color:#000;font-size:14px;font-weight:700;border:none;border-radius:11px;padding:11px 26px;cursor:pointer;}
+
+/* 等待画面 */
+#video-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;pointer-events:none;z-index:5;}
+#video-loading .spinner{width:30px;height:30px;border:2px solid rgba(255,255,255,0.1);border-top-color:#00ff88;border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#video-loading p{font-size:12px;color:rgba(255,255,255,0.4);}
+
+/* 时间轴回放面板 */
+#playback-panel{position:absolute;inset:0;background:rgba(0,0,0,0.97);display:none;flex-direction:column;z-index:30;}
+#pb-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.1);}
+#pb-title{font-size:15px;font-weight:600;}
+#pb-close{background:rgba(255,255,255,0.09);border:none;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;}
+
+/* 时间轴 */
+#timeline-wrap{padding:16px 14px 8px;flex-shrink:0;}
+#timeline-label{font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:6px;display:flex;justify-content:space-between;}
+#timeline{position:relative;width:100%;height:28px;background:rgba(255,255,255,0.07);border-radius:6px;overflow:hidden;cursor:pointer;}
+#timeline-track{height:100%;display:flex;align-items:center;}
+.tl-seg{height:100%;background:rgba(255,255,255,0.12);flex-shrink:0;}
+.tl-seg.motion{background:rgba(0,255,136,0.35);}
+.tl-seg.selected{outline:2px solid #00ff88;}
+#timeline-cursor{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none;}
+
+/* chunk 列表 */
+#chunk-list{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:7px;}
+.chunk-item{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:9px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.chunk-item.motion-flag{border-color:rgba(0,255,136,0.3);}
+.chunk-time{font-size:12px;font-weight:500;}
+.chunk-meta{font-size:10px;color:rgba(255,255,255,0.38);}
+.chunk-dl{background:rgba(0,255,136,0.14);border:1px solid rgba(0,255,136,0.3);color:#00ff88;border-radius:7px;padding:3px 10px;font-size:10px;font-weight:600;cursor:pointer;white-space:nowrap;}
+
+/* toast */
+#toast{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.2);border-radius:18px;padding:7px 18px;font-size:12px;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:40;white-space:nowrap;}
+#toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- 连接界面 -->
+<div id="connect-screen">
+  <div id="app-icon">🐱</div>
+  <div id="app-title">CatCam 观看端</div>
+  <div id="app-sub">输入房间码（和密码）连接推流端</div>
+  <div id="input-wrap">
+    <div class="inp-label">房间码</div>
+    <input class="inp-field" id="room-input" type="text" maxlength="6" placeholder="ABC123" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()">
+    <div class="inp-label">密码（推流端未设密码则留空）</div>
+    <input class="inp-field" id="pwd-input" type="text" maxlength="20" placeholder="（可留空）" autocomplete="off" autocorrect="off" spellcheck="false" style="letter-spacing:1px;font-size:14px;">
+    <button id="connect-btn" onclick="connectToCamera()">连接</button>
+    <div id="connect-status"></div>
+  </div>
+</div>
+
+<!-- 观看界面 -->
+<div id="watch-screen">
+  <div id="video-wrap">
+    <video id="remote-video" playsinline autoplay></video>
+    <div id="video-loading"><div class="spinner"></div><p>等待画面...</p></div>
+    <div id="rec-badge">● 录制中</div>
+
+    <!-- HUD -->
+    <div id="watch-hud">
+      <div id="hud-left">
+        <div id="live-dot"></div>
+        <div id="live-label">LIVE</div>
+        <div id="audio-bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      </div>
+      <!-- 中间信号 -->
+      <div id="signal-bars">
+        <div class="sig-bar" id="sig1"></div><div class="sig-bar" id="sig2" style="height:8px"></div>
+        <div class="sig-bar" id="sig3" style="height:11px"></div><div class="sig-bar" id="sig4" style="height:14px"></div>
+      </div>
+    </div>
+
+    <!-- 状态看板按钮 -->
+    <div id="dashboard-btn" onclick="toggleDashboard()">
+      <span id="bat-display">🔋--</span>
+      <span id="watch-quality">--</span>
+    </div>
+
+    <!-- 状态看板抽屉 -->
+    <div id="dashboard">
+      <div id="dash-header">
+        <div id="dash-title">设备状态</div>
+        <button id="dash-close" onclick="toggleDashboard()">关闭</button>
+      </div>
+      <div id="dash-body">
+        <div id="thermal-alert">⚠️ 设备可能过热！帧率过低，建议远程关闭推流降温。</div>
+        <div class="dash-row"><span class="dash-label">电量</span><span class="dash-val" id="d-battery">--</span></div>
+        <div class="dash-row"><span class="dash-label">充电状态</span><span class="dash-val" id="d-charging">--</span></div>
+        <div class="dash-row"><span class="dash-label">帧率</span><span class="dash-val" id="d-fps">--</span></div>
+        <div class="dash-row"><span class="dash-label">网络延迟</span><span class="dash-val" id="d-rtt">--</span></div>
+        <div class="dash-row"><span class="dash-label">本地录像</span><span class="dash-val ok" id="d-rec">--</span></div>
+        <div class="dash-row"><span class="dash-label">补光灯</span><span class="dash-val" id="d-torch">关闭</span></div>
+        <button class="dash-btn" onclick="remoteToggleTorch()">切换补光灯</button>
+        <button class="dash-btn" onclick="remoteToggleStealth()">远程隐身模式</button>
+        <button class="dash-btn danger" onclick="remoteReload()">⚠️ 远程重启推流端</button>
+      </div>
+    </div>
+
+    <!-- 镜头 -->
+    <div id="lens-switcher">
+      <div class="lens-btn" data-i="0" onclick="switchLens(0)">0.5x</div>
+      <div class="lens-btn active" data-i="1" onclick="switchLens(1)">1x</div>
+      <div class="lens-btn" data-i="2" onclick="switchLens(2)">2x</div>
+    </div>
+
+    <!-- PTZ 手势层 -->
+    <div id="ptz-overlay"></div>
+    <div id="ptz-indicator"></div>
+
+    <!-- 断线 -->
+    <div id="disconnected">
+      <div id="disconnected-icon">📡</div>
+      <div id="disconnected-title">连接断开</div>
+      <div id="disconnected-sub">正在尝试自动重连...<br>或点击下方返回</div>
+      <button id="reconnect-btn" onclick="goBack()">返回</button>
+    </div>
+
+    <!-- 回放 -->
+    <div id="playback-panel">
+      <div id="pb-header">
+        <div id="pb-title">📼 录像回放（24小时内）</div>
+        <button id="pb-close" onclick="closePlayback()">关闭</button>
+      </div>
+      <div id="timeline-wrap">
+        <div id="timeline-label"><span>24h 前</span><span>现在</span></div>
+        <div id="timeline"><div id="timeline-track"></div><div id="timeline-cursor" style="left:100%"></div></div>
+      </div>
+      <div id="chunk-list"><div style="padding:24px;text-align:center;color:rgba(255,255,255,0.3);font-size:12px">正在加载...</div></div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <!-- 底部控制栏 -->
+  <div id="watch-controls">
+    <button class="w-btn active" id="btn-sound" onclick="toggleSound()"><span class="w-icon">🔊</span>声音</button>
+    <div id="vol-wrap">
+      <div id="vol-label">音量</div>
+      <input type="range" id="vol-slider" min="0" max="100" value="80" oninput="setVolume(this.value)">
+    </div>
+    <button class="w-btn" id="btn-intercom" onpointerdown="startTalk()" onpointerup="stopTalk()" onpointerleave="stopTalk()"><span class="w-icon">🎙</span>对讲</button>
+    <button class="w-btn" id="btn-screenshot" onclick="takeScreenshot()"><span class="w-icon">📷</span>截图</button>
+    <button class="w-btn danger" id="btn-screenrec" onclick="toggleScreenRec()"><span class="w-icon">⏺</span>录屏</button>
+    <button class="w-btn" id="btn-playback" onclick="openPlayback()"><span class="w-icon">📼</span>回放</button>
+    <button class="w-btn" id="btn-fs" onclick="toggleFullscreen()"><span class="w-icon">⛶</span>全屏</button>
+    <button class="w-btn" onclick="goBack()"><span class="w-icon">✕</span>断开</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════
+// ICE / STUN / TURN 配置
+// ═══════════════════════════════════════════════
+const ICE_SERVERS = {
+  config: {
+    iceServers: [
+      // STUN：Google 官方（全球最稳定）+ 备用
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      // TURN：openrelay.metered.ca 免费公共节点（可靠，支持跨网）
+      { urls: 'turn:openrelay.metered.ca:80',              username:'openrelayproject', credential:'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443',             username:'openrelayproject', credential:'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject', credential:'openrelayproject' },
+      { urls: 'turns:openrelay.metered.ca:443',            username:'openrelayproject', credential:'openrelayproject' },
+      // 备用 TURN
+      { urls: 'turn:relay.metered.ca:80',                  username:'openrelayproject', credential:'openrelayproject' },
+      { urls: 'turn:relay.metered.ca:443',                 username:'openrelayproject', credential:'openrelayproject' },
+      { urls: 'turn:relay.metered.ca:443?transport=tcp',   username:'openrelayproject', credential:'openrelayproject' },
+    ],
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all',
+  }
+};
+
+// ═══════════════════════════════════════════════
+// 状态
+// ═══════════════════════════════════════════════
+let peer=null,currentCall=null,dataConn=null;
+let soundEnabled=true;
+let screenRecorder=null,screenChunks=[],screenRecActive=false;
+let intercomStream=null,talkConn=null;
+let reconnectTimer=null,reconnectAttempts=0;
+let cameraRoomId='',enteredPassword='';
+let torchState=false,stealthState=false;
+// PTZ
+let ptzScale=1,ptzX=0.5,ptzY=0.5;
+let pinchStartDist=0,pinchStartScale=1;
+
+const remoteVideo=document.getElementById('remote-video');
+const connectStatus=document.getElementById('connect-status');
+const audioBars=document.getElementById('audio-bars');
+const videoLoading=document.getElementById('video-loading');
+const recBadge=document.getElementById('rec-badge');
+
+// ═══════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════
+function showToast(msg,dur=1800){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// ═══════════════════════════════════════════════
+// 连接
+// ═══════════════════════════════════════════════
+function setStatus(msg,type=''){connectStatus.textContent=msg;connectStatus.className=type;}
+
+function connectToCamera(){
+  const raw=document.getElementById('room-input').value.trim().toUpperCase();
+  enteredPassword=document.getElementById('pwd-input').value.trim();
+  if(raw.length<4){setStatus('请输入正确的房间码','error');return;}
+  cameraRoomId='catcam-'+raw;
+  const btn=document.getElementById('connect-btn');
+  btn.disabled=true;setStatus('连接中...','');
+  doConnect();
+}
+
+function doConnect(){
+  if(peer){try{peer.destroy();}catch(e){}}
+  peer=new Peer({host:'0.peerjs.com',port:443,path:'/',secure:true,...ICE_SERVERS});
+
+  peer.on('open',()=>{
+    setStatus('联系推流端...');
+    dataConn=peer.connect(cameraRoomId,{reliable:true});
+
+    dataConn.on('open',()=>{
+      // 发送认证
+      dataConn.send({type:'auth',password:enteredPassword});
+    });
+
+    dataConn.on('data',msg=>{
+      if(!msg) return;
+      if(msg.type==='auth-fail'){setStatus('密码错误','error');document.getElementById('connect-btn').disabled=false;peer.destroy();return;}
+      if(msg.type==='auth-ok'){setStatus('等待画面...');showWatchScreen();reconnectAttempts=0;}
+      handleCameraMsg(msg);
+    });
+
+    dataConn.on('close',()=>onConnectionLost());
+    dataConn.on('error',()=>onConnectionLost());
+
+    peer.on('call',call=>{
+      currentCall=call;
+      call.answer(getIntercomStream());
+      call.on('stream',remoteStream=>{
+        remoteVideo.srcObject=remoteStream;
+        remoteVideo.volume=document.getElementById('vol-slider').value/100;
+        remoteVideo.play().then(()=>{
+          videoLoading.style.display='none';
+          updateQuality('● 已连接');
+        }).catch(()=>{
+          videoLoading.innerHTML='<button onclick="forcePlay()" style="background:#00ff88;color:#000;border:none;border-radius:10px;padding:11px 22px;font-size:14px;font-weight:700;cursor:pointer">点击开始</button>';
+        });
+      });
+      call.on('close',onConnectionLost);
+      call.on('error',onConnectionLost);
+    });
+  });
+
+  peer.on('error',err=>{
+    let msg='连接失败';
+    if(err.type==='peer-unavailable') msg='找不到房间码，确认推流端已开启';
+    else if(err.type==='network') msg='网络错误';
+    setStatus(msg,'error');
+    document.getElementById('connect-btn').disabled=false;
+  });
+
+  setTimeout(()=>{if(!remoteVideo.srcObject){setStatus('连接超时，请重试','error');document.getElementById('connect-btn').disabled=false;}},16000);
+}
+
+// ═══════════════════════════════════════════════
+// 自动重连（心跳）
+// ═══════════════════════════════════════════════
+function onConnectionLost(){
+  if(document.getElementById('watch-screen').style.display==='none') return;
+  document.getElementById('disconnected').style.display='flex';
+  document.getElementById('disconnected-sub').textContent=`正在自动重连... (${++reconnectAttempts})`;
+  clearTimeout(reconnectTimer);
+  reconnectTimer=setTimeout(()=>{
+    if(reconnectAttempts<10) doConnect();
+  },Math.min(3000*reconnectAttempts,15000));
+}
+
+// ═══════════════════════════════════════════════
+// 处理推流端消息
+// ═══════════════════════════════════════════════
+let chunkListCb=null,chunkDataCbs={};
+
+function handleCameraMsg(msg){
+  switch(msg.type){
+    case 'status': updateDashboard(msg); break;
+    case 'chunk-list': if(chunkListCb){chunkListCb(msg.list);chunkListCb=null;} break;
+    case 'chunk-data': if(chunkDataCbs[msg.id]){chunkDataCbs[msg.id](msg.data);delete chunkDataCbs[msg.id];} break;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 状态看板
+// ═══════════════════════════════════════════════
+function updateDashboard(s){
+  // 电池
+  const bat=s.battery!=null?s.battery+'%':'--';
+  const charging=s.charging===true?'⚡充电中':s.charging===false?'电池供电':'--';
+  document.getElementById('d-battery').textContent=bat;
+  document.getElementById('d-charging').textContent=charging;
+  document.getElementById('bat-display').textContent=(s.charging?'⚡':'🔋')+(s.battery!=null?s.battery+'%':'--');
+
+  // FPS
+  const fpsEl=document.getElementById('d-fps');
+  fpsEl.textContent=s.fps!=null?s.fps+' fps':'--';
+  fpsEl.className='dash-val '+(s.fps>=12?'ok':s.fps>=6?'warn':'bad');
+
+  // RTT
+  const rttEl=document.getElementById('d-rtt');
+  rttEl.textContent=s.rtt!=null?s.rtt+' ms':'--';
+  rttEl.className='dash-val '+(s.rtt<100?'ok':s.rtt<300?'warn':'bad');
+  updateSignalBars(s.rtt);
+  updateQuality(s.rtt!=null?s.rtt+'ms':'--');
+
+  // 录像
+  document.getElementById('d-rec').textContent=s.recOn?'录制中':'已暂停';
+  document.getElementById('d-torch').textContent=s.torchOn?'开启':'关闭';
+  torchState=s.torchOn;stealthState=false;
+
+  // 过热
+  document.getElementById('thermal-alert').classList.toggle('show',!!s.thermalWarn);
+}
+
+function updateSignalBars(rtt){
+  const good=rtt!=null&&rtt<300;
+  const med=rtt!=null&&rtt<150;
+  const exc=rtt!=null&&rtt<80;
+  ['sig1','sig2','sig3','sig4'].forEach((id,i)=>{
+    const el=document.getElementById(id);
+    el.classList.toggle('on',i===0?good:i===1?good:i===2?med:exc);
+  });
+}
+
+function updateQuality(msg){document.getElementById('watch-quality').textContent=msg;}
+
+function toggleDashboard(){document.getElementById('dashboard').classList.toggle('open');}
+
+// 远程控制
+function remoteToggleTorch(){
+  if(!dataConn||!dataConn.open){showToast('未连接');return;}
+  torchState=!torchState;
+  dataConn.send({type:'torch',on:torchState});
+  showToast(torchState?'补光灯已开':'补光灯已关');
+}
+function remoteToggleStealth(){
+  if(!dataConn||!dataConn.open){showToast('未连接');return;}
+  stealthState=!stealthState;
+  dataConn.send({type:'stealth',on:stealthState});
+  showToast(stealthState?'已进入隐身模式':'已退出隐身模式');
+}
+function remoteReload(){
+  if(!dataConn||!dataConn.open){showToast('未连接');return;}
+  if(!confirm('确定要远程重启推流端吗？')) return;
+  dataConn.send({type:'remote-reload'});
+  showToast('已发送重启指令');
+}
+
+// ═══════════════════════════════════════════════
+// 镜头
+// ═══════════════════════════════════════════════
+function switchLens(i){
+  document.querySelectorAll('.lens-btn').forEach((b,j)=>b.classList.toggle('active',j===i));
+  if(dataConn&&dataConn.open) dataConn.send({type:'switch-lens',index:i});
+  showToast(['超广角 0.5x','主摄 1x','长焦 2x'][i]);
+}
+
+// ═══════════════════════════════════════════════
+// PTZ（捏合缩放 + 拖拽平移）
+// ═══════════════════════════════════════════════
+const ptzEl=document.getElementById('ptz-overlay');
+const ptzInd=document.getElementById('ptz-indicator');
+let lastTouchTime=0,dragStartX=0,dragStartY=0,dragPtzX=0.5,dragPtzY=0.5;
+
+function sendPTZ(){
+  if(!dataConn||!dataConn.open) return;
+  dataConn.send({type:'ptz',x:ptzX,y:ptzY,scale:ptzScale});
+  ptzInd.textContent=ptzScale.toFixed(1)+'x';
+  ptzInd.classList.add('show');
+  clearTimeout(ptzInd._t);ptzInd._t=setTimeout(()=>ptzInd.classList.remove('show'),1500);
+}
+
+ptzEl.addEventListener('touchstart',e=>{
+  if(e.touches.length===2){
+    pinchStartDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    pinchStartScale=ptzScale;
+  } else if(e.touches.length===1){
+    dragStartX=e.touches[0].clientX; dragStartY=e.touches[0].clientY;
+    dragPtzX=ptzX; dragPtzY=ptzY;
+  }
+},{passive:true});
+
+ptzEl.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===2){
+    const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    ptzScale=Math.max(1,Math.min(4,pinchStartScale*(dist/pinchStartDist)));
+    sendPTZ();
+  } else if(e.touches.length===1&&ptzScale>1){
+    const dx=(e.touches[0].clientX-dragStartX)/ptzEl.clientWidth;
+    const dy=(e.touches[0].clientY-dragStartY)/ptzEl.clientHeight;
+    ptzX=Math.max(0,Math.min(1,dragPtzX-dx/ptzScale));
+    ptzY=Math.max(0,Math.min(1,dragPtzY-dy/ptzScale));
+    sendPTZ();
+  }
+},{passive:false});
+
+ptzEl.addEventListener('touchend',e=>{
+  if(e.touches.length===0&&ptzScale<=1.05){ptzScale=1;ptzX=0.5;ptzY=0.5;sendPTZ();}
+},{passive:true});
+
+// ═══════════════════════════════════════════════
+// 对讲（按住说话）
+// ═══════════════════════════════════════════════
+function getIntercomStream(){
+  // call.answer 时传入本地麦克风流，实现双向语音
+  // 但只在"说话"时取消静音
+  return null; // 默认静音，startTalk 时激活
+}
+
+async function startTalk(){
+  const btn=document.getElementById('btn-intercom');
+  btn.classList.add('talking');
+  try{
+    intercomStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    if(currentCall&&currentCall.peerConnection){
+      intercomStream.getAudioTracks().forEach(track=>{
+        currentCall.peerConnection.getSenders().forEach(s=>{if(s.track&&s.track.kind==='audio') s.replaceTrack(track);});
+      });
+    }
+  }catch(e){showToast('麦克风权限不足');}
+}
+
+function stopTalk(){
+  document.getElementById('btn-intercom').classList.remove('talking');
+  if(intercomStream){intercomStream.getTracks().forEach(t=>t.stop());intercomStream=null;}
+  if(currentCall&&currentCall.peerConnection){
+    currentCall.peerConnection.getSenders().forEach(s=>{if(s.track&&s.track.kind==='audio') s.replaceTrack(null);});
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 截图
+// ═══════════════════════════════════════════════
+function takeScreenshot(){
+  if(!remoteVideo.srcObject){showToast('未连接');return;}
+  const c=document.createElement('canvas');
+  c.width=remoteVideo.videoWidth||1280;c.height=remoteVideo.videoHeight||720;
+  c.getContext('2d').drawImage(remoteVideo,0,0);
+  c.toBlob(blob=>{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;
+    a.download='catcam-'+new Date().toISOString().replace(/[:.]/g,'-')+'.jpg';
+    a.click();URL.revokeObjectURL(url);showToast('截图已保存');
+  },'image/jpeg',0.92);
+}
+
+// ═══════════════════════════════════════════════
+// 录屏
+// ═══════════════════════════════════════════════
+function toggleScreenRec(){if(!screenRecActive) startScreenRec(); else stopScreenRec();}
+
+function startScreenRec(){
+  if(!remoteVideo.srcObject){showToast('未连接');return;}
+  const mime=MediaRecorder.isTypeSupported('video/mp4')?'video/mp4':'video/webm';
+  try{
+    screenChunks=[];
+    screenRecorder=new MediaRecorder(remoteVideo.srcObject,{mimeType:mime,videoBitsPerSecond:3_000_000});
+    screenRecorder.ondataavailable=e=>{if(e.data.size>0) screenChunks.push(e.data);};
+    screenRecorder.onstop=()=>{
+      const blob=new Blob(screenChunks,{type:mime});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;
+      a.download='catcam-rec-'+new Date().toISOString().replace(/[:.]/g,'-')+(mime.includes('mp4')?'.mp4':'.webm');
+      a.click();URL.revokeObjectURL(url);showToast('录屏已保存');
+    };
+    screenRecorder.start(1000);
+    screenRecActive=true;recBadge.classList.add('on');
+    document.getElementById('btn-screenrec').classList.add('active');
+    document.getElementById('btn-screenrec').querySelector('.w-icon').textContent='⏹';
+    showToast('开始录屏');
+  }catch(e){showToast('录屏失败:'+e.message);}
+}
+
+function stopScreenRec(){
+  if(screenRecorder){screenRecorder.stop();screenRecorder=null;}
+  screenRecActive=false;recBadge.classList.remove('on');
+  document.getElementById('btn-screenrec').classList.remove('active');
+  document.getElementById('btn-screenrec').querySelector('.w-icon').textContent='⏺';
+}
+
+// ═══════════════════════════════════════════════
+// 回放 + 时间轴
+// ═══════════════════════════════════════════════
+function openPlayback(){
+  if(!dataConn||!dataConn.open){showToast('请先连接推流端');return;}
+  document.getElementById('playback-panel').style.display='flex';
+  document.getElementById('chunk-list').innerHTML='<div style="padding:24px;text-align:center;color:rgba(255,255,255,0.3);font-size:12px">正在加载...</div>';
+  chunkListCb=renderPlayback;
+  dataConn.send({type:'request-chunks'});
+}
+
+function renderPlayback(list){
+  // 时间轴
+  const now=Date.now(),range=24*3600*1000;
+  const track=document.getElementById('timeline-track');
+  track.innerHTML='';
+  const sorted=(list||[]).sort((a,b)=>a.ts-b.ts);
+  sorted.forEach((c,i)=>{
+    const leftPct=((c.ts-now+range)/range)*100;
+    const widthPct=10/(range/60000); // 每chunk约10s/24h
+    const seg=document.createElement('div');
+    seg.className='tl-seg'+(c.motion?' motion':'');
+    seg.style.cssText=`position:absolute;left:${Math.max(0,leftPct).toFixed(2)}%;width:${Math.max(0.3,widthPct).toFixed(2)}%;height:100%;`;
+    seg.title=new Date(c.ts).toLocaleTimeString();
+    seg.onclick=()=>highlightChunk(c.id);
+    track.appendChild(seg);
+  });
+
+  // 列表
+  const container=document.getElementById('chunk-list');
+  if(!sorted.length){container.innerHTML='<div style="padding:24px;text-align:center;color:rgba(255,255,255,0.3);font-size:12px">暂无录像</div>';return;}
+  container.innerHTML='';
+  sorted.reverse().forEach(c=>{
+    const d=new Date(c.ts);
+    const ts=d.toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const sz=(c.size/1024/1024).toFixed(1)+' MB';
+    const el=document.createElement('div');
+    el.className='chunk-item'+(c.motion?' motion-flag':'');
+    el.id='chunk-'+c.id;
+    el.innerHTML=`<div><div class="chunk-time">${ts}${c.motion?' 🐾':''}</div><div class="chunk-meta">${sz}</div></div><div class="chunk-dl" onclick="downloadChunk(${c.id},'${ts}')">下载</div>`;
+    container.appendChild(el);
+  });
+}
+
+function highlightChunk(id){
+  document.querySelectorAll('.chunk-item').forEach(el=>el.style.borderColor='');
+  const el=document.getElementById('chunk-'+id);
+  if(el){el.style.borderColor='rgba(0,255,136,0.7)';el.scrollIntoView({behavior:'smooth',block:'center'});}
+}
+
+function downloadChunk(id,ts){
+  showToast('正在获取...');
+  chunkDataCbs[id]=data=>{
+    const a=document.createElement('a');a.href=data;a.download='catcam-'+ts.replace(/[/ :]/g,'-')+'.webm';a.click();showToast('下载完成');
+  };
+  dataConn.send({type:'get-chunk',id});
+}
+
+function closePlayback(){document.getElementById('playback-panel').style.display='none';}
+
+// ═══════════════════════════════════════════════
+// 界面
+// ═══════════════════════════════════════════════
+function forcePlay(){videoLoading.style.display='none';remoteVideo.play().catch(()=>{});updateQuality('● 已连接');}
+function showWatchScreen(){
+  document.getElementById('connect-screen').style.display='none';
+  document.getElementById('watch-screen').style.display='flex';
+  videoLoading.style.display='flex';
+}
+function goBack(){
+  clearTimeout(reconnectTimer);reconnectAttempts=0;
+  if(screenRecActive) stopScreenRec();
+  if(currentCall){try{currentCall.close();}catch(e){}}
+  if(peer){try{peer.destroy();}catch(e){}}
+  remoteVideo.srcObject=null;
+  document.getElementById('connect-screen').style.display='flex';
+  document.getElementById('watch-screen').style.display='none';
+  document.getElementById('disconnected').style.display='none';
+  videoLoading.style.display='none';
+  document.getElementById('connect-btn').disabled=false;
+  setStatus('');
+}
+function toggleSound(){
+  soundEnabled=!soundEnabled;remoteVideo.muted=!soundEnabled;
+  const btn=document.getElementById('btn-sound');
+  btn.classList.toggle('active',soundEnabled);
+  btn.querySelector('.w-icon').textContent=soundEnabled?'🔊':'🔇';
+  audioBars.classList.toggle('muted',!soundEnabled);
+}
+function setVolume(v){
+  remoteVideo.volume=v/100;const m=Number(v)===0;remoteVideo.muted=m;soundEnabled=!m;
+  document.getElementById('btn-sound').classList.toggle('active',soundEnabled);
+  document.getElementById('btn-sound').querySelector('.w-icon').textContent=soundEnabled?'🔊':'🔇';
+  audioBars.classList.toggle('muted',!soundEnabled);
+}
+function toggleFullscreen(){
+  const wrap=document.getElementById('video-wrap');
+  const fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  if(!fs)(wrap.requestFullscreen||wrap.webkitRequestFullscreen).call(wrap);
+  else(document.exitFullscreen||document.webkitExitFullscreen).call(document);
+  document.getElementById('btn-fs').classList.toggle('active',!fs);
+}
+
+document.getElementById('room-input').addEventListener('keydown',e=>{if(e.key==='Enter') document.getElementById('pwd-input').focus();});
+document.getElementById('pwd-input').addEventListener('keydown',e=>{if(e.key==='Enter') connectToCamera();});
+</script>
+</body>
+</html>
