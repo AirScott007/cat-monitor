@@ -5,98 +5,129 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>猫咪监控 · 推流端</title>
+<title>CatCam · 推流端</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#000; color:#fff; font-family:-apple-system,sans-serif; height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
-#container { position:relative; flex:1; overflow:hidden; }
-#video { width:100%; height:100%; object-fit:cover; display:block; }
-#canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-#hud {
-  position:absolute; top:0; left:0; right:0;
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 16px;
-  background:linear-gradient(to bottom,rgba(0,0,0,0.65),transparent);
-  z-index:10;
-}
-#hud-left { display:flex; align-items:center; gap:8px; }
-#rec-dot { width:8px; height:8px; border-radius:50%; background:#ff3b30; animation:blink 1.2s infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
-#hud-title { font-size:13px; font-weight:600; letter-spacing:0.5px; }
-#status-badge {
-  font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px;
-  background:rgba(255,180,0,0.15); border:1px solid rgba(255,180,0,0.4); color:#ffb400;
-  transition:all 0.3s;
-}
-#status-badge.connected { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.45); color:#00ff88; }
-#controls {
-  display:flex; align-items:center; gap:10px;
-  padding:14px 16px; padding-bottom:max(14px,env(safe-area-inset-bottom));
-  background:rgba(0,0,0,0.88); flex-shrink:0; z-index:10;
-}
-.ctrl-btn {
-  display:flex; flex-direction:column; align-items:center; gap:3px;
-  background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.14);
-  border-radius:12px; padding:8px 12px; color:#fff; font-size:10px;
-  cursor:pointer; -webkit-tap-highlight-color:transparent; min-width:56px;
-}
-.ctrl-btn:active { background:rgba(255,255,255,0.16); transform:scale(0.95); }
-.ctrl-btn.active { background:rgba(0,255,136,0.15); border-color:rgba(0,255,136,0.5); color:#00ff88; }
-.ctrl-icon { font-size:18px; line-height:1; }
-#id-panel { flex:1; display:flex; flex-direction:column; gap:3px; min-width:0; }
-#id-label { font-size:10px; color:rgba(255,255,255,0.4); }
-#id-code { font-size:22px; font-weight:700; letter-spacing:4px; color:#fff; font-variant-numeric:tabular-nums; }
-#id-hint { font-size:10px; color:rgba(255,255,255,0.3); }
-#loading {
-  position:absolute; inset:0; background:#000;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:14px; z-index:100; text-align:center; padding:32px;
-}
-#loading-title { font-size:17px; font-weight:600; }
-#loading-sub { font-size:13px; color:rgba(255,255,255,0.45); line-height:1.7; }
-#loading-step { font-size:12px; color:rgba(255,255,255,0.28); }
-.spinner { width:38px; height:38px; border:3px solid rgba(255,255,255,0.1); border-top-color:#00ff88; border-radius:50%; animation:spin 0.8s linear infinite; }
-@keyframes spin { to{transform:rotate(360deg)} }
-#crosshair {
-  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-  width:36px; height:36px; pointer-events:none; opacity:0.2;
-}
-#crosshair::before,#crosshair::after { content:''; position:absolute; background:rgba(255,255,255,0.7); }
-#crosshair::before { width:1px; height:100%; left:50%; top:0; }
-#crosshair::after { width:100%; height:1px; top:50%; left:0; }
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+#container{position:relative;flex:1;overflow:hidden;}
+#video{width:100%;height:100%;object-fit:cover;display:block;transition:opacity 0.3s;}
+#canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+/* HUD */
+#hud{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:linear-gradient(to bottom,rgba(0,0,0,0.7),transparent);z-index:10;}
+#hud-left{display:flex;align-items:center;gap:7px;}
+#rec-dot{width:7px;height:7px;border-radius:50%;background:#ff3b30;animation:blink 1.2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.1}}
+#hud-title{font-size:12px;font-weight:700;letter-spacing:1px;}
+#rec-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:rgba(255,59,48,0.25);border:1px solid rgba(255,59,48,0.6);color:#ff6b6b;display:none;}
+#rec-badge.on{display:block;animation:blink 1s infinite;}
+#status-badge{font-size:10px;font-weight:600;padding:2px 9px;border-radius:10px;background:rgba(255,180,0,0.15);border:1px solid rgba(255,180,0,0.4);color:#ffb400;transition:all 0.3s;}
+#status-badge.connected{background:rgba(0,255,136,0.15);border-color:rgba(0,255,136,0.45);color:#00ff88;}
+
+/* 存储条 */
+#storage-bar{position:absolute;bottom:0;left:0;right:0;padding:3px 12px;background:rgba(0,0,0,0.55);display:flex;align-items:center;gap:8px;z-index:5;}
+#storage-track{flex:1;height:2px;background:rgba(255,255,255,0.15);border-radius:1px;overflow:hidden;}
+#storage-fill{height:100%;background:#00ff88;border-radius:1px;width:0%;transition:width 2s;}
+#storage-text{font-size:9px;color:rgba(255,255,255,0.35);white-space:nowrap;}
+
+/* 隐身模式遮罩 */
+#stealth-mask{position:absolute;inset:0;background:#000;display:none;z-index:50;cursor:pointer;}
+#stealth-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0.15;font-size:12px;letter-spacing:2px;}
+
+/* toast */
+#lens-toast{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.75);border:1px solid rgba(255,255,255,0.2);border-radius:14px;padding:10px 20px;font-size:16px;font-weight:600;opacity:0;transition:opacity 0.2s;pointer-events:none;z-index:20;}
+#lens-toast.show{opacity:1;}
+
+/* 热度/网络警告横幅 */
+#warn-banner{position:absolute;top:44px;left:12px;right:12px;background:rgba(255,140,0,0.9);border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;color:#000;display:none;z-index:15;text-align:center;}
+#warn-banner.show{display:block;}
+
+/* 底部控制 */
+#controls{display:grid;grid-template-columns:1fr repeat(4,auto);align-items:center;gap:7px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:rgba(0,0,0,0.9);flex-shrink:0;z-index:10;}
+.ctrl-btn{display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.13);border-radius:11px;padding:7px 9px;color:#fff;font-size:9px;cursor:pointer;-webkit-tap-highlight-color:transparent;min-width:46px;}
+.ctrl-btn:active{transform:scale(0.94);}
+.ctrl-btn.active{background:rgba(0,255,136,0.15);border-color:rgba(0,255,136,0.5);color:#00ff88;}
+.ctrl-btn.warn{background:rgba(255,140,0,0.15);border-color:rgba(255,140,0,0.5);color:#ff8c00;}
+.ctrl-icon{font-size:16px;line-height:1;}
+#id-panel{display:flex;flex-direction:column;gap:1px;min-width:0;}
+#id-label{font-size:9px;color:rgba(255,255,255,0.38);}
+#id-code{font-size:18px;font-weight:700;letter-spacing:3px;color:#fff;}
+#id-sub{font-size:9px;color:rgba(255,255,255,0.25);}
+
+/* 加载 */
+#loading{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;z-index:100;text-align:center;padding:32px;}
+#loading-title{font-size:17px;font-weight:600;}
+#loading-sub{font-size:13px;color:rgba(255,255,255,0.4);line-height:1.7;}
+#loading-step{font-size:11px;color:rgba(255,255,255,0.25);}
+.spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,0.1);border-top-color:#00ff88;border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 密码设置 */
+#pwd-screen{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;padding:32px;}
+#pwd-title{font-size:19px;font-weight:600;}
+#pwd-sub{font-size:13px;color:rgba(255,255,255,0.4);text-align:center;line-height:1.6;}
+#pwd-input{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);border-radius:12px;padding:14px 18px;color:#fff;font-size:18px;font-weight:600;letter-spacing:3px;text-align:center;width:100%;max-width:280px;-webkit-appearance:none;outline:none;}
+#pwd-input:focus{border-color:rgba(0,255,136,0.6);}
+#pwd-btn{background:#00ff88;color:#000;font-size:16px;font-weight:700;border:none;border-radius:12px;padding:14px 40px;cursor:pointer;width:100%;max-width:280px;}
+#pwd-hint{font-size:11px;color:rgba(255,255,255,0.3);}
 </style>
 </head>
 <body>
-<div id="loading">
+
+<!-- 密码设置 -->
+<div id="pwd-screen">
+  <div style="font-size:40px">🔐</div>
+  <div id="pwd-title">设置连接密码</div>
+  <div id="pwd-sub">观看端需要输入此密码才能连接<br>留空则不设密码</div>
+  <input id="pwd-input" type="text" maxlength="20" placeholder="自定义密码（可留空）" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button id="pwd-btn" onclick="confirmPassword()">确认并启动</button>
+  <div id="pwd-hint">密码会与房间码一起显示给你</div>
+</div>
+
+<!-- 加载 -->
+<div id="loading" style="display:none">
   <div class="spinner"></div>
   <div id="loading-title">启动中...</div>
-  <div id="loading-sub">正在加载 AI 模型和摄像头<br>首次约需 15–20 秒，请保持网络连接</div>
+  <div id="loading-sub">加载 AI 模型和摄像头<br>首次约需 15–20 秒</div>
   <div id="loading-step">初始化...</div>
 </div>
 
 <div id="container">
   <video id="video" playsinline autoplay muted></video>
   <canvas id="canvas"></canvas>
-  <div id="crosshair"></div>
+  <div id="lens-toast"></div>
+  <div id="warn-banner"></div>
+  <div id="stealth-mask"><div id="stealth-hint">TAP TO WAKE</div></div>
   <div id="hud">
     <div id="hud-left">
       <div id="rec-dot"></div>
       <div id="hud-title">CAT CAM</div>
+      <div id="rec-badge">● REC</div>
     </div>
     <div id="status-badge">等待连接</div>
+  </div>
+  <div id="storage-bar">
+    <div id="storage-track"><div id="storage-fill"></div></div>
+    <div id="storage-text">录像: 0 MB</div>
   </div>
 </div>
 
 <div id="controls">
   <div id="id-panel">
-    <div id="id-label">房间码（给观看端输入）</div>
+    <div id="id-label">房间码 / 密码</div>
     <div id="id-code">------</div>
-    <div id="id-hint">观看端打开 viewer.html 输入此码</div>
+    <div id="id-sub">观看端输入连接</div>
   </div>
   <button class="ctrl-btn active" id="btn-ai" onclick="toggleAI()">
     <span class="ctrl-icon">🎯</span>AI
   </button>
-  <button class="ctrl-btn" id="btn-cam" onclick="switchCamera()">
+  <button class="ctrl-btn active" id="btn-rec" onclick="toggleLocalRec()">
+    <span class="ctrl-icon">💾</span>录像
+  </button>
+  <button class="ctrl-btn" id="btn-stealth" onclick="toggleStealth()">
+    <span class="ctrl-icon">🌑</span>隐身
+  </button>
+  <button class="ctrl-btn" id="btn-flip" onclick="flipCamera()">
     <span class="ctrl-icon">🔄</span>翻转
   </button>
 </div>
@@ -105,163 +136,550 @@ body { background:#000; color:#fff; font-family:-apple-system,sans-serif; height
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
-const LABELS = ['cat','dog','bird','horse','sheep','cow','elephant','bear','zebra','giraffe','person'];
-const ZH = {cat:'猫',dog:'狗',bird:'鸟',horse:'马',sheep:'羊',cow:'牛',elephant:'象',bear:'熊',zebra:'斑马',giraffe:'长颈鹿',person:'人'};
+// ═══════════════════════════════════════════════
+// ICE / STUN / TURN 配置
+// ═══════════════════════════════════════════════
+const ICE_SERVERS = {
+  config: {
+    iceServers: [
+      // STUN：多个备用，国内可达
+      { urls: 'stun:stun.voipbuster.com:3478' },
+      { urls: 'stun:stun.voipstunt.com:3478' },
+      { urls: 'stun:stun.stunprotocol.org:3478' },
+      { urls: 'stun:stun.ekiga.net:3478' },
+      // TURN：freestun 免费公共节点，UDP + TCP，国内可达
+      { urls: 'turn:freestun.net:3478',              username:'free', credential:'free' },
+      { urls: 'turn:freestun.net:3479',              username:'free', credential:'free' },
+      { urls: 'turns:freestun.net:5350',             username:'free', credential:'free' },
+      { urls: 'turn:freestun.net:3478?transport=tcp',username:'free', credential:'free' },
+    ],
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all',
+  }
+};
 
-let model=null, stream=null, facingMode='environment';
-let aiEnabled=true, peer=null, activeCall=null;
-let animFrame=null, myRoomId=null;
+// ═══════════════════════════════════════════════
+// 常量
+// ═══════════════════════════════════════════════
+const LABELS=['cat','dog','bird','horse','sheep','cow','elephant','bear','zebra','giraffe','person'];
+const ZH={cat:'猫',dog:'狗',bird:'鸟',horse:'马',sheep:'羊',cow:'牛',elephant:'象',bear:'熊',zebra:'斑马',giraffe:'长颈鹿',person:'人'};
+const LENS=[{label:'超广角 0.5x',zoom:0.5},{label:'主摄 1x',zoom:1.0},{label:'长焦 2x',zoom:2.0}];
+const CHUNK_MS=10000, MAX_REC_H=24;
 
-const video    = document.getElementById('video');
-const canvas   = document.getElementById('canvas');
-const ctx      = canvas.getContext('2d');
-const loading  = document.getElementById('loading');
-const loadStep = document.getElementById('loading-step');
-const idCode   = document.getElementById('id-code');
-const badge    = document.getElementById('status-badge');
-const crosshair= document.getElementById('crosshair');
+// ═══════════════════════════════════════════════
+// 状态
+// ═══════════════════════════════════════════════
+let model=null,stream=null,facingMode='environment',lensIdx=1;
+let aiEnabled=true,localRecOn=true,stealthMode=false;
+let peer=null,activeCall=null,dataConn=null;
+let animFrame=null,wakeLock=null;
+let mediaRecorder=null,db=null;
+let roomPassword='',myRoomId='';
 
-function resizeCanvas() {
-  canvas.width  = video.videoWidth  || window.innerWidth;
-  canvas.height = video.videoHeight || window.innerHeight;
+// 监控数据
+let pingStart=0,rtt=0,frameCount=0,lastFpsTime=Date.now(),fps=0;
+let motionHistory=[];   // [{ts, hasMotion}]
+let prevFrameData=null; // 上一帧像素用于帧差
+let thermalWarned=false;
+
+// ═══════════════════════════════════════════════
+// DOM
+// ═══════════════════════════════════════════════
+const video=document.getElementById('video');
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const loading=document.getElementById('loading');
+const loadStep=document.getElementById('loading-step');
+const idCode=document.getElementById('id-code');
+const badge=document.getElementById('status-badge');
+const recBadge=document.getElementById('rec-badge');
+const stealthMask=document.getElementById('stealth-mask');
+const warnBanner=document.getElementById('warn-banner');
+const storageFill=document.getElementById('storage-fill');
+const storageText=document.getElementById('storage-text');
+const lensToast=document.getElementById('lens-toast');
+
+// ═══════════════════════════════════════════════
+// 密码
+// ═══════════════════════════════════════════════
+function confirmPassword(){
+  roomPassword=document.getElementById('pwd-input').value.trim();
+  document.getElementById('pwd-screen').style.display='none';
+  loading.style.display='flex';
+  init();
 }
+document.getElementById('pwd-input').addEventListener('keydown',e=>{if(e.key==='Enter')confirmPassword();});
 
-async function startCamera() {
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode, width:{ideal:1280}, height:{ideal:720} },
-    audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
-  });
-  video.srcObject = stream;
+// ═══════════════════════════════════════════════
+// Wake Lock
+// ═══════════════════════════════════════════════
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      wakeLock=await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release',()=>setTimeout(requestWakeLock,2000));
+    }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') requestWakeLock();
+});
+
+// ═══════════════════════════════════════════════
+// 摄像头
+// ═══════════════════════════════════════════════
+async function startCamera(lensI){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  const vc={facingMode,width:{ideal:1920},height:{ideal:1080}};
+  if(lensI!==undefined) vc.advanced=[{zoom:LENS[lensI].zoom}];
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:vc,audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  }catch(e){
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode,width:{ideal:1280},height:{ideal:720}},audio:true});
+  }
+  video.srcObject=stream;
   await video.play();
   resizeCanvas();
+  if(dataConn&&activeCall){activeCall.close();activeCall=peer.call(dataConn.peer,stream);setupCall(activeCall);}
+  if(localRecOn){stopLocalRec();startLocalRec();}
 }
 
-function generateRoomId() {
-  return 'catcam-' + Math.random().toString(36).substr(2,6).toUpperCase();
+function resizeCanvas(){
+  canvas.width=video.videoWidth||window.innerWidth;
+  canvas.height=video.videoHeight||window.innerHeight;
 }
 
-function initPeer(roomId) {
-  myRoomId = roomId;
-  idCode.textContent = roomId.replace('catcam-','');
+// ═══════════════════════════════════════════════
+// 补光灯
+// ═══════════════════════════════════════════════
+let torchOn=false;
+async function setTorch(on){
+  if(!stream) return;
+  const track=stream.getVideoTracks()[0];
+  if(!track) return;
+  try{
+    await track.applyConstraints({advanced:[{torch:on}]});
+    torchOn=on;
+  }catch(e){console.warn('torch not supported');}
+}
 
-  if (peer) { try { peer.destroy(); } catch(e){} }
+// ═══════════════════════════════════════════════
+// 电池监控
+// ═══════════════════════════════════════════════
+let batteryObj=null;
+async function initBattery(){
+  if(!('getBattery' in navigator)) return;
+  try{
+    batteryObj=await navigator.getBattery();
+    batteryObj.addEventListener('levelchange',broadcastStatus);
+    batteryObj.addEventListener('chargingchange',broadcastStatus);
+  }catch(e){}
+}
 
-  peer = new Peer(roomId, { host:'0.peerjs.com', port:443, path:'/', secure:true });
+function getBatteryInfo(){
+  if(!batteryObj) return {level:null,charging:null};
+  return{level:Math.round(batteryObj.level*100),charging:batteryObj.charging};
+}
 
-  peer.on('open', () => {
-    badge.textContent = '等待连接';
-    badge.className = 'status-badge';
-  });
+// ═══════════════════════════════════════════════
+// 性能/过热监控（通过帧率下降推断）
+// ═══════════════════════════════════════════════
+function checkThermal(){
+  if(fps>0&&fps<8&&!thermalWarned){
+    thermalWarned=true;
+    showWarn('⚠️ 设备可能过热，帧率降至 '+fps+' fps，建议关闭推流降温');
+    broadcastStatus();
+  } else if(fps>=12){
+    thermalWarned=false;
+    hideWarn();
+  }
+}
 
-  peer.on('error', (err) => {
-    if (err.type === 'unavailable-id') {
-      initPeer(generateRoomId());
+function showWarn(msg){
+  warnBanner.textContent=msg;
+  warnBanner.classList.add('show');
+}
+function hideWarn(){warnBanner.classList.remove('show');}
+
+// ═══════════════════════════════════════════════
+// 网络质量（RTT ping）
+// ═══════════════════════════════════════════════
+function startPingLoop(){
+  setInterval(()=>{
+    if(dataConn&&dataConn.open){
+      pingStart=Date.now();
+      dataConn.send({type:'ping',ts:pingStart});
     }
-  });
+  },3000);
+}
 
-  // 关键：viewer 连进来是 data connection，camera 收到后主动 call viewer
-  peer.on('connection', (conn) => {
-    conn.on('open', () => {
-      badge.textContent = '已连接';
-      badge.className = 'status-badge connected';
-
-      // camera 主动把自己的流推给 viewer
-      if (activeCall) { try { activeCall.close(); } catch(e){} }
-      activeCall = peer.call(conn.peer, stream);
-
-      activeCall.on('close', () => {
-        badge.textContent = '等待连接';
-        badge.className = 'status-badge';
-        activeCall = null;
-      });
-      activeCall.on('error', () => {
-        badge.textContent = '等待连接';
-        badge.className = 'status-badge';
-      });
-    });
-
-    conn.on('data', (d) => { if (d === 'ping') conn.send('pong'); });
-
-    conn.on('close', () => {
-      badge.textContent = '等待连接';
-      badge.className = 'status-badge';
-    });
+// ═══════════════════════════════════════════════
+// 状态广播给观看端
+// ═══════════════════════════════════════════════
+function broadcastStatus(){
+  if(!dataConn||!dataConn.open) return;
+  const bat=getBatteryInfo();
+  dataConn.send({
+    type:'status',
+    battery: bat.level,
+    charging: bat.charging,
+    fps,
+    rtt,
+    thermalWarn: thermalWarned,
+    recOn: localRecOn,
+    torchOn,
+    motionHistory: motionHistory.slice(-360), // 最近1小时（10s间隔）
   });
 }
+setInterval(broadcastStatus,5000);
 
-async function init() {
-  loadStep.textContent = '请求摄像头权限...';
-  await startCamera();
-  loadStep.textContent = '加载 AI 模型（约 10–15 秒）...';
-  model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
-  loadStep.textContent = '连接信令服务器...';
-  initPeer(generateRoomId());
-  loading.style.display = 'none';
-  detect();
-}
+// ═══════════════════════════════════════════════
+// 移动侦测（帧差算法）
+// ═══════════════════════════════════════════════
+const motionCanvas=document.createElement('canvas');
+const mctx=motionCanvas.getContext('2d');
+let motionCheckInterval=null;
 
-async function detect() {
-  if (!model || !video.videoWidth) { animFrame = requestAnimationFrame(detect); return; }
-  resizeCanvas();
-  let preds = [];
-  try { preds = await model.detect(video); } catch(e){}
-  const vw = video.videoWidth, vh = video.videoHeight;
-  const boxes = preds
-    .filter(p => LABELS.includes(p.class) && p.score > 0.45)
-    .map(p => ({ lz:ZH[p.class]||p.class, score:p.score,
-      x:p.bbox[0]/vw, y:p.bbox[1]/vh, w:p.bbox[2]/vw, h:p.bbox[3]/vh }));
-  crosshair.style.display = boxes.length > 0 ? 'none' : 'block';
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (aiEnabled) drawBoxes(boxes);
-  animFrame = requestAnimationFrame(detect);
-}
-
-function drawBoxes(boxes) {
-  const cw=canvas.width, ch=canvas.height;
-  boxes.forEach((b,i) => {
-    const x=b.x*cw, y=b.y*ch, w=b.w*cw, h=b.h*ch;
-    const primary=i===0;
-    ctx.strokeStyle = primary?'#00ff88':'rgba(255,255,255,0.45)';
-    ctx.lineWidth = primary?2:1;
-    ctx.strokeRect(x,y,w,h);
-    const cs=12; ctx.lineWidth=primary?3:1.5;
-    [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy])=>{
-      ctx.beginPath(); ctx.moveTo(cx+dx*cs,cy); ctx.lineTo(cx,cy); ctx.lineTo(cx,cy+dy*cs); ctx.stroke();
-    });
-    const label=b.lz+' '+Math.round(b.score*100)+'%';
-    ctx.font=(primary?'bold 13px':'11px')+' -apple-system';
-    const tw=ctx.measureText(label).width;
-    const lx=Math.min(x,cw-tw-12), ly=y>22?y-6:y+h+18;
-    ctx.fillStyle=primary?'#00ff88':'rgba(255,255,255,0.65)';
-    ctx.fillRect(lx-4,ly-14,tw+10,18);
-    ctx.fillStyle='#000'; ctx.fillText(label,lx+1,ly);
-    if (primary) {
-      const t=(Date.now()%2000)/2000, sy=y+t*h;
-      const g=ctx.createLinearGradient(x,sy-6,x,sy+6);
-      g.addColorStop(0,'rgba(0,255,136,0)'); g.addColorStop(0.5,'rgba(0,255,136,0.3)'); g.addColorStop(1,'rgba(0,255,136,0)');
-      ctx.fillStyle=g; ctx.fillRect(x,sy-6,w,12);
+function checkMotion(){
+  if(!video.videoWidth) return;
+  const w=80,h=45; // 缩小分辨率提升性能
+  motionCanvas.width=w; motionCanvas.height=h;
+  mctx.drawImage(video,0,0,w,h);
+  const curr=mctx.getImageData(0,0,w,h).data;
+  let diff=0;
+  if(prevFrameData){
+    for(let i=0;i<curr.length;i+=4){
+      diff+=Math.abs(curr[i]-prevFrameData[i])+Math.abs(curr[i+1]-prevFrameData[i+1])+Math.abs(curr[i+2]-prevFrameData[i+2]);
     }
+  }
+  prevFrameData=curr.slice();
+  const hasMotion=diff>(w*h*3*15); // 阈值15/255
+  motionHistory.push({ts:Date.now(),motion:hasMotion});
+  if(motionHistory.length>8640) motionHistory.shift(); // 保留24h
+  return hasMotion;
+}
+
+// ═══════════════════════════════════════════════
+// IndexedDB 录像
+// ═══════════════════════════════════════════════
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open('CatCamRec',2);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('chunks')){
+        const s=d.createObjectStore('chunks',{keyPath:'id',autoIncrement:true});
+        s.createIndex('ts','ts',{unique:false});
+      }
+      if(!d.objectStoreNames.contains('motion')){
+        const m=d.createObjectStore('motion',{keyPath:'id',autoIncrement:true});
+        m.createIndex('ts','ts',{unique:false});
+      }
+    };
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=()=>rej(req.error);
   });
 }
 
-function toggleAI() {
+async function saveChunk(blob,hasMotion){
+  if(!db) return;
+  const tx=db.transaction('chunks','readwrite');
+  tx.objectStore('chunks').add({ts:Date.now(),blob,motion:hasMotion});
+  await pruneOld();
+  updateStorageUI();
+}
+
+async function pruneOld(){
+  if(!db) return;
+  const cutoff=Date.now()-MAX_REC_H*3600*1000;
+  const tx=db.transaction('chunks','readwrite');
+  const idx=tx.objectStore('chunks').index('ts');
+  idx.openCursor(IDBKeyRange.upperBound(cutoff)).onsuccess=e=>{
+    const c=e.target.result; if(c){c.delete();c.continue();}
+  };
+}
+
+async function getTotalMB(){
+  if(!db) return 0;
+  return new Promise(res=>{
+    const tx=db.transaction('chunks','readonly');
+    let t=0;
+    tx.objectStore('chunks').openCursor().onsuccess=e=>{
+      const c=e.target.result;
+      if(c){t+=c.value.blob.size;c.continue();}
+      else res(t/1024/1024);
+    };
+  });
+}
+
+async function updateStorageUI(){
+  const mb=await getTotalMB();
+  const pct=Math.min(100,mb/80*100);
+  storageFill.style.width=pct+'%';
+  storageText.textContent='录像: '+mb.toFixed(0)+' MB';
+}
+
+// ═══════════════════════════════════════════════
+// 本地录像
+// ═══════════════════════════════════════════════
+function startLocalRec(){
+  if(!stream||mediaRecorder) return;
+  const mime=MediaRecorder.isTypeSupported('video/mp4')?'video/mp4':'video/webm';
+  try{
+    mediaRecorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2_000_000});
+    let chunkMotion=false;
+    mediaRecorder.ondataavailable=e=>{
+      if(e.data&&e.data.size>0){saveChunk(e.data,chunkMotion);chunkMotion=false;}
+    };
+    mediaRecorder.start(CHUNK_MS);
+    recBadge.classList.add('on');
+    // 每秒检测一次动作，chunk结束时取 OR
+    motionCheckInterval=setInterval(()=>{if(checkMotion()) chunkMotion=true;},1000);
+  }catch(e){console.warn('rec fail',e);}
+}
+
+function stopLocalRec(){
+  if(mediaRecorder){try{mediaRecorder.stop();}catch(e){}mediaRecorder=null;}
+  clearInterval(motionCheckInterval);
+  recBadge.classList.remove('on');
+}
+
+function toggleLocalRec(){
+  localRecOn=!localRecOn;
+  document.getElementById('btn-rec').classList.toggle('active',localRecOn);
+  if(localRecOn) startLocalRec(); else stopLocalRec();
+}
+
+// ═══════════════════════════════════════════════
+// PeerJS
+// ═══════════════════════════════════════════════
+function generateRoomId(){
+  return 'catcam-'+Math.random().toString(36).substr(2,6).toUpperCase();
+}
+
+function updateIdDisplay(){
+  idCode.textContent=myRoomId.replace('catcam-','')+(roomPassword?' / '+roomPassword:'');
+  document.getElementById('id-sub').textContent=roomPassword?'房间码 / 密码':'无密码，观看端直接输房间码';
+}
+
+function setupCall(call){
+  call.on('close',()=>{badge.textContent='等待连接';badge.className='status-badge';activeCall=null;dataConn=null;});
+  call.on('error',()=>{badge.textContent='等待连接';badge.className='status-badge';});
+}
+
+function initPeer(roomId){
+  myRoomId=roomId;
+  updateIdDisplay();
+  if(peer){try{peer.destroy();}catch(e){}}
+  peer=new Peer(roomId,{host:'0.peerjs.com',port:443,path:'/',secure:true,...ICE_SERVERS});
+  peer.on('open',()=>{badge.textContent='等待连接';});
+  peer.on('error',err=>{if(err.type==='unavailable-id') initPeer(generateRoomId());});
+
+  peer.on('connection',conn=>{
+    // 验证密码
+    conn.on('open',()=>{
+      conn.once('data',msg=>{
+        if(roomPassword&&msg.type==='auth'&&msg.password!==roomPassword){
+          conn.send({type:'auth-fail'});
+          conn.close();
+          return;
+        }
+        // 认证通过
+        conn.send({type:'auth-ok'});
+        dataConn=conn;
+        badge.textContent='已连接';badge.className='status-badge connected';
+        if(activeCall){try{activeCall.close();}catch(e){}}
+        activeCall=peer.call(conn.peer,stream);
+        setupCall(activeCall);
+        broadcastStatus();
+        startPingLoop();
+
+        conn.on('data',handleViewerMsg);
+        conn.on('close',()=>{badge.textContent='等待连接';badge.className='status-badge';activeCall=null;dataConn=null;});
+      });
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 处理观看端指令
+// ═══════════════════════════════════════════════
+function handleViewerMsg(msg){
+  if(!msg) return;
+  switch(msg.type){
+    case 'pong': rtt=Date.now()-pingStart; break;
+    case 'switch-lens': switchLensTo(msg.index); break;
+    case 'flip': flipCamera(); break;
+    case 'torch': setTorch(msg.on); break;
+    case 'request-chunks': sendChunkList(); break;
+    case 'get-chunk': sendChunk(msg.id); break;
+    case 'stealth': toggleStealth(msg.on); break;
+    case 'remote-reload': location.reload(); break;
+    case 'ptz': applyPTZ(msg.x,msg.y,msg.scale); break;
+    case 'intercom-start': startIntercom(); break;
+    case 'intercom-stop': stopIntercom(); break;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 发送录像数据
+// ═══════════════════════════════════════════════
+async function sendChunkList(){
+  if(!db||!dataConn) return;
+  const tx=db.transaction('chunks','readonly');
+  const list=[];
+  tx.objectStore('chunks').openCursor().onsuccess=e=>{
+    const c=e.target.result;
+    if(c){list.push({id:c.value.id,ts:c.value.ts,size:c.value.blob.size,motion:c.value.motion});c.continue();}
+    else dataConn.send({type:'chunk-list',list});
+  };
+}
+
+async function sendChunk(id){
+  if(!db||!dataConn) return;
+  const tx=db.transaction('chunks','readonly');
+  tx.objectStore('chunks').get(id).onsuccess=e=>{
+    if(!e.target.result) return;
+    const r=new FileReader();
+    r.onload=()=>dataConn.send({type:'chunk-data',id,data:r.result});
+    r.readAsDataURL(e.target.result.blob);
+  };
+}
+
+// ═══════════════════════════════════════════════
+// 对讲
+// ═══════════════════════════════════════════════
+let intercomStream=null;
+async function startIntercom(){
+  // 从观看端的音频已在 WebRTC 里——这里主要确保本地扬声器不静音
+  // 观看端说话时，camera 端的 remoteStream audio 自动播放
+}
+function stopIntercom(){}
+
+// ═══════════════════════════════════════════════
+// PTZ（数字变焦/裁切）
+// ═══════════════════════════════════════════════
+let ptzX=0.5,ptzY=0.5,ptzScale=1;
+function applyPTZ(x,y,scale){
+  ptzX=x; ptzY=y; ptzScale=Math.max(1,Math.min(4,scale));
+  const ox=(ptzX-0.5/ptzScale)*100;
+  const oy=(ptzY-0.5/ptzScale)*100;
+  video.style.transformOrigin=`${ptzX*100}% ${ptzY*100}%`;
+  video.style.transform=`scale(${ptzScale})`;
+}
+
+// ═══════════════════════════════════════════════
+// 镜头
+// ═══════════════════════════════════════════════
+function showLensToast(t){
+  lensToast.textContent=t;lensToast.classList.add('show');
+  clearTimeout(lensToast._t);lensToast._t=setTimeout(()=>lensToast.classList.remove('show'),1400);
+}
+async function switchLensTo(i){
+  if(i<0||i>=LENS.length) return;
+  lensIdx=i; showLensToast(LENS[i].label);
+  await startCamera(lensIdx);
+}
+async function flipCamera(){
+  facingMode=facingMode==='environment'?'user':'environment'; lensIdx=1;
+  await startCamera(lensIdx);
+}
+
+// ═══════════════════════════════════════════════
+// 隐身模式
+// ═══════════════════════════════════════════════
+function toggleStealth(force){
+  stealthMode=force!==undefined?force:!stealthMode;
+  stealthMask.style.display=stealthMode?'block':'none';
+  document.getElementById('btn-stealth').classList.toggle('active',stealthMode);
+}
+stealthMask.addEventListener('click',()=>toggleStealth(false));
+
+// ═══════════════════════════════════════════════
+// AI 追踪
+// ═══════════════════════════════════════════════
+function toggleAI(){
   aiEnabled=!aiEnabled;
   document.getElementById('btn-ai').classList.toggle('active',aiEnabled);
-  if (!aiEnabled) ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!aiEnabled) ctx.clearRect(0,0,canvas.width,canvas.height);
 }
 
-async function switchCamera() {
-  facingMode = facingMode==='environment'?'user':'environment';
-  await startCamera();
+async function detect(){
+  if(!model||!video.videoWidth){animFrame=requestAnimationFrame(detect);return;}
+  resizeCanvas();
+  let preds=[];
+  try{preds=await model.detect(video);}catch(e){}
+  const vw=video.videoWidth,vh=video.videoHeight;
+  const boxes=preds.filter(p=>LABELS.includes(p.class)&&p.score>0.45)
+    .map(p=>({lz:ZH[p.class]||p.class,score:p.score,x:p.bbox[0]/vw,y:p.bbox[1]/vh,w:p.bbox[2]/vw,h:p.bbox[3]/vh}));
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(aiEnabled) drawBoxes(boxes);
+  // FPS
+  frameCount++;
+  const now=Date.now();
+  if(now-lastFpsTime>=1000){fps=frameCount;frameCount=0;lastFpsTime=now;checkThermal();}
+  animFrame=requestAnimationFrame(detect);
 }
 
-window.addEventListener('resize', resizeCanvas);
-video.addEventListener('loadedmetadata', resizeCanvas);
+function drawBoxes(boxes){
+  const cw=canvas.width,ch=canvas.height;
+  boxes.forEach((b,i)=>{
+    const x=b.x*cw,y=b.y*ch,w=b.w*cw,h=b.h*ch,p=i===0;
+    ctx.strokeStyle=p?'#00ff88':'rgba(255,255,255,0.4)';ctx.lineWidth=p?2:1;ctx.strokeRect(x,y,w,h);
+    const cs=11;ctx.lineWidth=p?3:1.5;
+    [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy])=>{
+      ctx.beginPath();ctx.moveTo(cx+dx*cs,cy);ctx.lineTo(cx,cy);ctx.lineTo(cx,cy+dy*cs);ctx.stroke();
+    });
+    const lbl=b.lz+' '+Math.round(b.score*100)+'%';
+    ctx.font=(p?'bold 12px':'10px')+' -apple-system';
+    const tw=ctx.measureText(lbl).width,lx=Math.min(x,cw-tw-10),ly=y>20?y-5:y+h+16;
+    ctx.fillStyle=p?'#00ff88':'rgba(255,255,255,0.6)';ctx.fillRect(lx-3,ly-13,tw+8,16);
+    ctx.fillStyle='#000';ctx.fillText(lbl,lx+1,ly);
+    if(p){const t=(Date.now()%2000)/2000,sy=y+t*h;
+      const g=ctx.createLinearGradient(x,sy-5,x,sy+5);
+      g.addColorStop(0,'rgba(0,255,136,0)');g.addColorStop(.5,'rgba(0,255,136,0.28)');g.addColorStop(1,'rgba(0,255,136,0)');
+      ctx.fillStyle=g;ctx.fillRect(x,sy-5,w,10);}
+  });
+}
 
-init().catch(e => {
-  loading.innerHTML=`<div style="font-size:14px;color:rgba(255,255,255,0.5);line-height:1.8;padding:32px">启动失败：${e.message}<br><br>请确保允许<b>摄像头</b>和<b>麦克风</b>权限后刷新。</div>`;
-});
+// ═══════════════════════════════════════════════
+// 心跳自动重连
+// ═══════════════════════════════════════════════
+let heartbeatTimer=null;
+function startHeartbeat(){
+  clearInterval(heartbeatTimer);
+  heartbeatTimer=setInterval(()=>{
+    if(peer&&peer.disconnected){
+      try{peer.reconnect();}catch(e){initPeer(myRoomId);}
+    }
+  },8000);
+}
+
+// ═══════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════
+async function init(){
+  loadStep.textContent='请求摄像头权限...';
+  await startCamera(lensIdx);
+  loadStep.textContent='加载 AI 模型...';
+  model=await cocoSsd.load({base:'lite_mobilenet_v2'});
+  loadStep.textContent='初始化存储...';
+  try{db=await openDB();}catch(e){console.warn('DB fail',e);}
+  loadStep.textContent='防休眠...';
+  await requestWakeLock();
+  await initBattery();
+  loadStep.textContent='连接信令服务器...';
+  initPeer(generateRoomId());
+  startHeartbeat();
+  loading.style.display='none';
+  startLocalRec();
+  detect();
+  setInterval(updateStorageUI,15000);
+  updateStorageUI();
+}
+
+window.addEventListener('resize',resizeCanvas);
+video.addEventListener('loadedmetadata',resizeCanvas);
 </script>
 </body>
 </html>
